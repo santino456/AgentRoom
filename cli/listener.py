@@ -74,6 +74,23 @@ def fetch_messages(base_url: str, room_id: int, limit: int = 50):
     return api_get(base_url, f"/api/rooms/{room_id}/messages?limit={limit}") or []
 
 
+def fetch_members(base_url: str, room_id: int):
+    """获取房间成员列表，用于动态识别 @ 目标。"""
+    return api_get(base_url, f"/api/rooms/{room_id}/members") or []
+
+
+def build_aliases_from_members(members: list, agent_name: str) -> list[str]:
+    """从成员列表构建触发关键词。"""
+    aliases = set()
+    for m in members:
+        name = m.get("name", "")
+        if name:
+            aliases.add(name)
+    # 始终支持 @all
+    aliases.add("all")
+    return list(aliases)
+
+
 def is_mentioning(content: str, aliases: list[str]) -> bool:
     if not content:
         return False
@@ -89,7 +106,7 @@ def is_mentioning(content: str, aliases: list[str]) -> bool:
 async def listen_websocket(
     room_id: int,
     agent_name: str,
-    aliases: list[str],
+    fallback_aliases: list[str],
     base_http: str,
     base_ws: str,
     heartbeat_interval: int,
@@ -99,8 +116,16 @@ async def listen_websocket(
     init_msgs = fetch_messages(base_http, room_id)
     last_seen_id = max((m["id"] for m in init_msgs), default=0)
 
+    # 动态获取成员列表构建 aliases
+    members = fetch_members(base_http, room_id)
+    aliases = build_aliases_from_members(members, agent_name)
+    if not aliases or aliases == ["all"]:
+        aliases = fallback_aliases
+        print(f"[{agent_name}] Using fallback aliases: {aliases}", flush=True)
+    else:
+        print(f"[{agent_name}] Dynamic aliases from members: {aliases}", flush=True)
+
     print(f"[{agent_name}] Room {room_id} | Timeout {timeout}s", flush=True)
-    print(f"[{agent_name}] Watching for: {', '.join(f'@{a}' for a in aliases)}", flush=True)
     print(f"[{agent_name}] Baseline ID: {last_seen_id}", flush=True)
 
     pending_messages = []
@@ -255,7 +280,7 @@ def main():
         asyncio.run(listen_websocket(
             room_id=room_id,
             agent_name=args.agent,
-            aliases=aliases,
+            fallback_aliases=aliases,
             base_http=base_http,
             base_ws=base_ws,
             heartbeat_interval=heartbeat,
