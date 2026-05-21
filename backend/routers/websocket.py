@@ -6,8 +6,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from database import get_db
 from models import Member
 from websocket import manager
+from logging_config import get_logger
 
 router = APIRouter()
+logger = get_logger("websocket")
 
 
 @router.websocket("/ws/{room_id}")

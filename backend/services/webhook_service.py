@@ -3,6 +3,9 @@ import json
 
 from database import get_db
 from models import WebhookConfig
+from logging_config import get_logger
+
+logger = get_logger("webhook")
 
 
 async def trigger_webhooks(room_id: int, message: dict):
@@ -33,10 +36,22 @@ async def trigger_webhooks(room_id: int, message: dict):
                     headers["X-Webhook-Signature"] = sig
                 try:
                     await client.post(cfg.url, content=payload, headers=headers)
+                    logger.info(
+                        "webhook_delivered",
+                        room_id=room_id,
+                        url=cfg.url,
+                        msg_id=message.get("id"),
+                    )
                 except Exception as e:
-                    print(f"[Webhook] Failed to {cfg.url}: {e}")
+                    logger.warning(
+                        "webhook_failed",
+                        room_id=room_id,
+                        url=cfg.url,
+                        error=str(e),
+                        msg_id=message.get("id"),
+                    )
     except Exception as e:
-        print(f"[Webhook] Error: {e}")
+        logger.error("webhook_error", room_id=room_id, error=str(e))
     finally:
         if db:
             db.close()

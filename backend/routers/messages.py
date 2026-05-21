@@ -10,8 +10,10 @@ from websocket import manager
 from services.member_service import get_or_create_member
 from services.webhook_service import trigger_webhooks
 from rate_limiter import limiter
+from logging_config import get_logger
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
+logger = get_logger("messages")
 
 
 def _get_room(room_id: int, db: Session) -> Room:
@@ -118,6 +120,20 @@ async def create_message(
     }
     await manager.broadcast(room_id, msg_out)
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
+
+    # Log agent mentions for observability
+    content_lower = (msg.content or "").lower()
+    for alias in ["@claude-agent", "@kimi-agent", "@all"]:
+        if alias.lower() in content_lower:
+            logger.info(
+                "agent_mentioned",
+                room_id=room_id,
+                msg_id=db_msg.id,
+                agent=alias,
+                sender=msg.from_name,
+            )
+            break
+
     return msg_out
 
 

@@ -3,7 +3,7 @@ import sys
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import settings
 from database import engine, Base
 from websocket import manager
+from logging_config import configure_logging, new_trace_id
+import structlog
 
 # Allow tests to override the database engine
 _db_engine = engine
@@ -19,6 +21,7 @@ _db_engine = engine
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    configure_logging(json_format=not settings.debug)
     Base.metadata.create_all(bind=_db_engine)
     yield
 
@@ -32,6 +35,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def trace_id_middleware(request: Request, call_next):
+    trace_id = request.headers.get("x-request-id") or new_trace_id()
+    structlog.contextvars.bind_contextvars(trace_id=trace_id)
+    response = await call_next(request)
+    response.headers["x-trace-id"] = trace_id
+    structlog.contextvars.clear_contextvars()
+    return response
 
 # Register routers
 from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket

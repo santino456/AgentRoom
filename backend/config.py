@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     max_member_name_length: int = 30
     default_lock_ttl: int = 300
     max_attachment_size_mb: int = 10
+    debug: bool = False
 
     model_config = ConfigDict(env_prefix="AGENT_COOP_", case_sensitive=False)
 
