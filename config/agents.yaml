@@ -1,0 +1,28 @@
+agents:
+- adapter: cli
+  aliases:
+  - kimi
+  - Kimi
+  - all
+  enabled: true
+  listener: cli/kimi_agent_listener.py
+  name: Kimi-Agent
+  rooms:
+  - id: 1
+    secret: ${ROOM_1_SECRET}
+- adapter: mcp
+  aliases:
+  - claude
+  - Claude
+  - all
+  enabled: true
+  listener: adapters/claude_mention_listener.py
+  name: claude-agent
+  rooms:
+  - id: 1
+    secret: ${ROOM_1_SECRET}
+global:
+  base_url: http://127.0.0.1:8080
+  heartbeat_interval: 20
+  reconnect_max_delay: 30
+  ws_base: ws://127.0.0.1:8080

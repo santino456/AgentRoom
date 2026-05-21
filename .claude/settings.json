@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      {
+        "command": "Bash:python*",
+        "when": "in /Users/hqyone/Documents/projects/solution-debator/agent-coop"
+      },
+      {
+        "command": "Bash:curl*",
+        "when": "always"
+      },
+      {
+        "command": "Bash:cd*",
+        "when": "always"
+      },
+      {
+        "command": "Bash:ls*",
+        "when": "always"
+      },
+      {
+        "command": "Bash:cat*",
+        "when": "always"
+      },
+      {
+        "command": "Read",
+        "when": "always"
+      },
+      {
+        "command": "Edit",
+        "when": "in /Users/hqyone/Documents/projects/solution-debator/agent-coop"
+      },
+      {
+        "command": "Write",
+        "when": "in /Users/hqyone/Documents/projects/solution-debator/agent-coop"
+      }
+    ]
+  }
+}
