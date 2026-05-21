@@ -30,14 +30,16 @@
 
 **Metrics:** `main.py` 660 lines -> ~60 lines. `App.tsx` 762 lines -> ~250 lines.
 
-## Phase 3: Security & Stability (Pending)
+## Phase 3: Security & Stability (Completed)
 
-| Item | Status |
-|------|--------|
-| CORS hardening (configured origins) | Pending |
-| Input length limits (Pydantic Field) | Pending |
-| Rate limiting (slowapi) | Pending |
-| Frontend virtual scrolling | Pending |
+| Item | Status | Commit |
+|------|--------|--------|
+| CORS hardening (configured origins) | Done | 0fc999e |
+| Input length limits (Pydantic Field) | Done | 0fc999e |
+| Rate limiting (memory sliding-window) | Done | 0fc999e |
+| Frontend virtual scrolling | In progress | Kimi-Agent |
+
+**Tests:** Backend 16/16 passing (新增 3 个 rate limit 测试).
 
 ## Phase 4: Developer Experience (Pending)
 
