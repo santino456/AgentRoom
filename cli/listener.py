@@ -23,30 +23,52 @@ from config_loader import load_config, get_agent_config, get_global_config
 
 
 def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bool:
-    """尝试获取文件锁，确保同一时刻只有一个监听器响应 @ 消息。"""
+    """尝试获取文件锁，确保同一时刻只有一个监听器响应 @ 消息。
+    使用 fcntl.flock (POSIX) 避免过期锁清理的竞态窗口。"""
+    import fcntl
+
     lock_path = f"/tmp/agent-coop-lock-{agent_name}-{room_id}.json"
     now = time.time()
     my_pid = os.getpid()
 
+    # 打开（或创建）锁文件，用 flock 保护所有操作
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
     try:
-        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        # 非阻塞获取排他锁；如果已被占用立即失败
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (BlockingIOError, OSError):
+        os.close(fd)
+        return False
+
+    try:
+        # 持有 flock 后安全地读写锁文件内容
+        try:
+            os.lseek(fd, 0, os.SEEK_SET)
+            data_raw = os.read(fd, 1024).decode()
+            if data_raw:
+                data = json.loads(data_raw)
+                lock_time = data.get("timestamp", 0)
+                lock_pid = data.get("pid", 0)
+                # 检查锁是否过期（且持有进程已不存在）
+                if now - lock_time <= ttl_seconds:
+                    # 锁未过期，归别人持有
+                    return False
+                # 锁已过期，继续执行（在 flock 保护下清理并重新写入）
+        except Exception:
+            pass  # 文件为空或损坏，视为可获取
+
+        # 清空并写入自己的锁数据
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)
         lock_data = json.dumps({"timestamp": now, "pid": my_pid})
         os.write(fd, lock_data.encode())
-        os.close(fd)
+        os.fsync(fd)
         return True
-    except FileExistsError:
-        try:
-            with open(lock_path, "r") as f:
-                data = json.load(f)
-            lock_time = data.get("timestamp", 0)
-            if now - lock_time > ttl_seconds:
-                os.remove(lock_path)
-                return try_acquire_lock(agent_name, room_id, ttl_seconds)
-        except Exception:
-            pass
-        return False
-    except Exception:
-        return False
+    finally:
+        # 注意：不要在这里解锁（fcntl.flock(fd, fcntl.LOCK_UN)），
+        # 因为进程退出时内核会自动释放 flock。
+        # 保持 fd 打开直到进程退出，确保其他进程看到锁被占用。
+        pass
 
 
 def api_get(base_url: str, path: str):
@@ -80,14 +102,9 @@ def fetch_members(base_url: str, room_id: int):
 
 
 def build_aliases_from_members(members: list, agent_name: str) -> list[str]:
-    """从成员列表构建触发关键词。"""
-    aliases = set()
-    for m in members:
-        name = m.get("name", "")
-        if name:
-            aliases.add(name)
-    # 始终支持 @all
-    aliases.add("all")
+    """从成员列表构建触发关键词。每个监听器只响应 @自己 和 @all。"""
+    # 只监听自己的名字和 @all，避免交叉触发其他 agent
+    aliases = {agent_name.lower(), "all"}
     return list(aliases)
 
 
@@ -212,7 +229,8 @@ async def listen_websocket(
 
                             remaining = count_running_listeners(base_http, room_id, agent_name)
                             need = max(0, 4 - remaining)
-                            print(f"\n[Listener Status] Running: {remaining} | Target: 4 | Refill: {need}", flush=True)
+                            print(f"\n[Listener Status] Running: {remaining} | Pool: 4 | Refill: {need}", flush=True)
+                            print("  Note: Pool is a buffer, 2-3 is fine. Reply first, refill when convenient.", flush=True)
                             if need > 0:
                                 print(f"  Command: .venv/bin/python cli/listener.py --agent {agent_name} --room {room_id}", flush=True)
                             return all_msgs, "mention"
