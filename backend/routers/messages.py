@@ -9,6 +9,7 @@ from schemas import MessageCreate, MessageUpdate, MessageOut, PaginatedMessages
 from websocket import manager
 from services.member_service import get_or_create_member
 from services.webhook_service import trigger_webhooks
+from rate_limiter import limiter
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
 
@@ -80,6 +81,9 @@ async def create_message(
     x_room_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
+    if not limiter.is_allowed(f"msg:{room_id}:{msg.from_name}", limit=30, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded: 30 messages per minute")
+
     room = _get_room(room_id, db)
     _verify_secret(room, x_room_secret)
 

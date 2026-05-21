@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 DEFAULT_DB_DIR = Path.home() / ".agent-coop"
@@ -17,9 +18,7 @@ class Settings(BaseSettings):
     default_lock_ttl: int = 300
     max_attachment_size_mb: int = 10
 
-    class Config:
-        env_prefix = "AGENT_COOP_"
-        case_sensitive = False
+    model_config = ConfigDict(env_prefix="AGENT_COOP_", case_sensitive=False)
 
 
 settings = Settings()

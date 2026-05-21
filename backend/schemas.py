@@ -1,11 +1,13 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from config import settings
 
 
 class RoomCreate(BaseModel):
-    name: str
+    name: str = Field(..., max_length=settings.max_room_name_length)
 
 
 class RoomOut(BaseModel):
@@ -18,7 +20,7 @@ class RoomOut(BaseModel):
 
 
 class MemberCreate(BaseModel):
-    name: str
+    name: str = Field(..., max_length=settings.max_member_name_length)
     type: str = "agent"
 
 
@@ -33,14 +35,14 @@ class MemberOut(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    from_name: str
-    content: str
+    from_name: str = Field(..., max_length=settings.max_member_name_length)
+    content: str = Field(..., max_length=settings.max_message_length)
     to_name: Optional[str] = None
     msg_type: str = "message"
 
 
 class MessageUpdate(BaseModel):
-    content: str
+    content: str = Field(..., max_length=settings.max_message_length)
 
 
 class MessageOut(BaseModel):
@@ -63,7 +65,7 @@ class PaginatedMessages(BaseModel):
 
 
 class WebhookCreate(BaseModel):
-    url: str
+    url: str = Field(..., max_length=500)
     events: str = "message,join"
     secret: str = ""
     enabled: bool = True

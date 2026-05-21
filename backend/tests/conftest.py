@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 
 from database import Base, get_db
 from main import app
+from rate_limiter import limiter
 
 # In-memory SQLite for tests (StaticPool ensures all connections share the same DB)
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -43,6 +44,7 @@ app.dependency_overrides[get_db] = override_get_db
 def client():
     # Create tables fresh for each test
     Base.metadata.create_all(bind=engine)
+    limiter._requests.clear()
     with TestClient(app) as c:
         yield c
     # Drop tables after test
