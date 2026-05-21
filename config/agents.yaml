@@ -5,7 +5,7 @@ agents:
   - Kimi
   - all
   enabled: true
-  listener: cli/kimi_agent_listener.py
+  listener: cli/listener.py --agent Kimi-Agent
   name: Kimi-Agent
   rooms:
   - id: 1
@@ -16,7 +16,7 @@ agents:
   - Claude
   - all
   enabled: true
-  listener: adapters/claude_mention_listener.py
+  listener: cli/listener.py --agent claude-agent
   name: claude-agent
   rooms:
   - id: 1
