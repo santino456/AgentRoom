@@ -8,6 +8,7 @@ Claude Mention Listener (WebSocket 事件驱动版)
 """
 import asyncio
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -17,6 +18,49 @@ import websockets
 BASE_HTTP = "http://127.0.0.1:8080"
 BASE_WS = "ws://127.0.0.1:8080"
 TARGETS = ["@claude-agent", "@claude", "@all"]
+AGENT_NAME = "claude-agent"
+
+
+def try_acquire_lock(room_id: int = 1, ttl_seconds: int = 30) -> bool:
+    """尝试获取文件锁，确保同一时刻只有一个监听器响应 @ 消息。"""
+    lock_path = f"/tmp/agent-coop-listener-lock-{AGENT_NAME}-{room_id}.json"
+    now = time.time()
+    my_pid = os.getpid()
+
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        lock_data = json.dumps({"timestamp": now, "pid": my_pid})
+        os.write(fd, lock_data.encode())
+        os.close(fd)
+        return True
+    except FileExistsError:
+        try:
+            with open(lock_path, "r") as f:
+                data = json.load(f)
+            lock_time = data.get("timestamp", 0)
+            if now - lock_time > ttl_seconds:
+                os.remove(lock_path)
+                return try_acquire_lock(room_id, ttl_seconds)
+        except Exception:
+            pass
+        return False
+    except Exception:
+        return False
+
+
+def count_running_listeners(room_id: int = 1) -> int:
+    """通过后端 API 统计当前运行中的监听器数量。"""
+    try:
+        req = urllib.request.Request(
+            f"{BASE_HTTP}/api/rooms/{room_id}/agent-status/listener-count?agent={AGENT_NAME}",
+            method="GET",
+        )
+        req.add_header("Accept", "application/json")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+            return data.get("listener_count", 0)
+    except Exception:
+        return 0
 
 
 def fetch_messages(room_id: int, limit: int = 50):
@@ -94,6 +138,11 @@ async def listen_websocket(room_id: int, timeout: int = None):
 
                         for target in TARGETS:
                             if target.lower() in content:
+                                # 文件锁协调：确保只有一个监听器响应
+                                if not try_acquire_lock(room_id):
+                                    print(f"[Lock] 锁已被其他监听器获取，继续监听...", flush=True)
+                                    continue
+
                                 # 触发时实时拉取上下文
                                 recent = fetch_messages(room_id, limit=10)
                                 context = [m for m in recent if m["id"] > last_seen_id - 20]
@@ -114,8 +163,12 @@ async def listen_websocket(room_id: int, timeout: int = None):
                                     print(f"[{ts}] @{sender}: {m.get('content', '')}", flush=True)
                                 print(f"\n{'=' * 50}", flush=True)
                                 print("EXIT_WITH_MESSAGES", flush=True)
-                                print("\n[续杯提醒] 监听器已退出，请手动续杯。", flush=True)
-                                print("  命令: .venv/bin/python adapters/claude_mention_listener.py 1 3600", flush=True)
+
+                                remaining = count_running_listeners(room_id)
+                                need = max(0, 4 - remaining)
+                                print(f"\n[Listener Status] 运行中: {remaining} | 目标: 4 | 建议续杯: {need}", flush=True)
+                                if need > 0:
+                                    print(f"  命令: .venv/bin/python adapters/claude_mention_listener.py 1 3600", flush=True)
                                 return all_msgs, "mention"
                 finally:
                     heartbeat_task.cancel()
