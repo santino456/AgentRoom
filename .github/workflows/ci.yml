@@ -15,7 +15,10 @@ jobs:
       - run: uv venv && uv pip install -r requirements.txt
       - run: |
           cd backend
-          ../.venv/bin/python -c "import main; print('Backend imports OK')"
+          ../.venv/bin/python -m pytest tests/ -v
+      - run: |
+          cd backend
+          ../.venv/bin/ruff check .
 
   test-frontend:
     runs-on: ubuntu-latest
@@ -24,7 +27,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: cd frontend && npm install && npm run build
+      - run: cd frontend && npm install
+      - run: cd frontend && npm run build
+      - run: cd frontend && npx vitest run
+      - run: cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"
 
   test-docker:
     runs-on: ubuntu-latest

@@ -3,8 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
-
-const API_BASE = 'http://10.21.156.186:8080/api'
+import { API_BASE, WS_BASE } from './config'
 
 // Markdown 渲染组件（提取到外部避免重复创建）
 const markdownComponents = {
@@ -197,7 +196,7 @@ export default function App() {
     const connect = () => {
       if (!shouldReconnect) return
       setWsStatus('connecting')
-      ws = new WebSocket(`ws://10.21.156.186:8080/ws/${currentRoomId}`)
+      ws = new WebSocket(`${WS_BASE}/ws/${currentRoomId}`)
       wsRef.current = ws
 
       ws.onopen = () => {

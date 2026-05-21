@@ -1,29 +1,60 @@
-.PHONY: dev install backend frontend build clean
+.PHONY: dev dev-backend dev-frontend install backend frontend build test lint format clean
 
-# 一键启动整个应用（后端 + 前端已构建）
-dev:
-	@echo "🚀 启动 Agent Coop..."
+# Start backend only (with auto-reload)
+dev-backend:
+	@echo "🚀 Starting backend..."
 	@cd backend && ../.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8080 --reload
 
-# 安装后端依赖
+# Start frontend only (with hot reload, separate terminal)
+dev-frontend:
+	@echo "🚀 Starting frontend dev server..."
+	@cd frontend && npm run dev
+
+# Start full app (backend serves built frontend)
+dev:
+	@echo "🚀 Starting Agent Coop..."
+	@cd backend && ../.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8080 --reload
+
+# Install dependencies
 install:
-	@echo "📦 安装后端依赖..."
+	@echo "📦 Installing backend dependencies..."
 	@uv venv && uv pip install -r requirements.txt
-	@echo "📦 安装前端依赖..."
+	@echo "📦 Installing frontend dependencies..."
 	@cd frontend && npm install
 
-# 构建前端
+# Build frontend
 build:
-	@echo "🏗️ 构建前端..."
+	@echo "🏗️ Building frontend..."
 	@cd frontend && npm run build
 
-# 清理（⚠️ 会删除数据库！需要确认）
+# Run all tests
+test:
+	@echo "🧪 Running backend tests..."
+	@cd backend && ../.venv/bin/python -m pytest tests/ -v
+	@echo "🧪 Running frontend tests..."
+	@cd frontend && npx vitest run
+
+# Run linters
+lint:
+	@echo "🔍 Running backend linter..."
+	@cd backend && ../.venv/bin/ruff check .
+	@echo "🔍 Running frontend linter..."
+	@cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"
+
+# Auto-format code
+format:
+	@echo "✨ Formatting backend..."
+	@cd backend && ../.venv/bin/ruff format .
+	@echo "✨ Formatting frontend..."
+	@cd frontend && npx prettier --write "src/**/*.{ts,tsx,css}"
+
+# Clean (⚠️ deletes database!)
 clean:
-	@echo "⚠️ 这将删除：frontend/dist, .venv, ~/.agent-coop（数据库）"
-	@read -p "确定继续? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "已取消" && exit 1)
+	@echo "⚠️ This will delete: frontend/dist, .venv, ~/.agent-coop (database)"
+	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled" && exit 1)
 	@rm -rf frontend/dist .venv ~/.agent-coop
 
-# 测试后端 API
+# Test backend API
 ping:
 	@curl -s http://127.0.0.1:8080/api/health | python3 -m json.tool
 

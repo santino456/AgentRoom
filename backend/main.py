@@ -4,6 +4,8 @@ import sys
 from datetime import datetime, timedelta
 from typing import Optional
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,19 +15,27 @@ from sqlalchemy.orm import Session
 # 确保 backend 目录在路径中
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from config import settings
 from database import engine, get_db
 from models import Base, Room, Member, Message, MemberType, MessageType, WebhookConfig, FileLock
 from websocket import manager
 
-# 创建数据库表
-Base.metadata.create_all(bind=engine)
+# Allow tests to override the database engine
+_db_engine = engine
 
-app = FastAPI(title="Agent Coop", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    Base.metadata.create_all(bind=_db_engine)
+    yield
+
+
+app = FastAPI(title="Agent Coop", version="0.2.0", lifespan=lifespan)
 
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
