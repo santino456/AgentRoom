@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -34,3 +34,13 @@ def get_agent_status(room_id: int, db: Session = Depends(get_db)):
             "last_active": last_active,
         })
     return result
+
+
+@router.get("/listener-count")
+def get_listener_count(room_id: int, agent: str = Query(..., description="Agent name"), db: Session = Depends(get_db)):
+    """返回指定 agent 在当前房间的 WS 监听器连接数。"""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    count = manager.get_agent_connection_count(room_id, agent)
+    return {"agent": agent, "room_id": room_id, "listener_count": count}
