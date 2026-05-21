@@ -5,6 +5,9 @@ Agent Coop CLI — Agent 协作命令行工具
 
 import click
 import httpx
+import os
+import subprocess
+import sys
 import time
 from datetime import datetime, timedelta
 
@@ -185,6 +188,77 @@ def members(room_id):
     click.echo(f"👥 房间 {room_id} 的成员:")
     for m in ms:
         click.echo(f"   • @{m['name']} ({m['type']})")
+
+
+# ---------- Listener ----------
+
+@cli.group()
+def listener():
+    """监听器管理"""
+    pass
+
+
+@listener.command("start")
+@click.option("--agent", required=True, help="Agent 名称")
+@click.option("--room", type=int, default=1, help="房间 ID")
+@click.option("--timeout", type=int, default=3600, help="超时时间(秒)")
+@click.option("--count", type=int, default=1, help="启动实例数量")
+def listener_start(agent, room, timeout, count):
+    """启动监听器实例"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    listener_script = os.path.join(script_dir, "listener.py")
+    for i in range(count):
+        # 用 nohup 启动，避免父进程退出时子进程被收掉
+        proc = subprocess.Popen(
+            ["nohup", sys.executable, listener_script, "--agent", agent, "--room", str(room), "--timeout", str(timeout)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动 (PID {proc.pid})")
+
+
+@listener.command("stop")
+@click.option("--agent", help="只停止指定 agent 的监听器")
+def listener_stop(agent):
+    """停止监听器"""
+    import signal
+    cmd = "cli/listener.py"
+    killed = 0
+    for line in os.popen("ps aux"):
+        if cmd in line and (not agent or f"--agent {agent}" in line):
+            pid = int(line.split()[1])
+            try:
+                os.kill(pid, signal.SIGTERM)
+                killed += 1
+            except ProcessLookupError:
+                pass
+    click.echo(f"🛑 已停止 {killed} 个监听器")
+
+
+@listener.command("status")
+def listener_status():
+    """查看监听器状态"""
+    import re
+    listeners = []
+    for line in os.popen("ps aux"):
+        if "cli/listener.py" in line:
+            parts = line.split()
+            pid = parts[1]
+            cmd = " ".join(parts[10:])
+            m = re.search(r"--agent\s+(\S+)", cmd)
+            agent = m.group(1) if m else "unknown"
+            m = re.search(r"--room\s+(\d+)", cmd)
+            room = m.group(1) if m else "?"
+            listeners.append((agent, room, pid))
+
+    if not listeners:
+        click.echo("没有运行中的监听器")
+        return
+
+    click.echo("🎧 运行中的监听器:")
+    for agent, room, pid in listeners:
+        click.echo(f"   • {agent} | room {room} | PID {pid}")
 
 
 if __name__ == "__main__":
