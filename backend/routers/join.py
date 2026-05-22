@@ -1,10 +1,11 @@
 import asyncio
+import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Room, Message, MessageType
+from models import Room, Member, Message, MessageType
 from schemas import MemberCreate
 from websocket import manager
 from services.member_service import get_or_create_member
@@ -17,16 +18,46 @@ router = APIRouter(tags=["join"])
 async def join_room(
     room_id: int,
     member: MemberCreate,
+    request: Request,
+    response: Response,
     x_room_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
     room = db.query(Room).filter(Room.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
+
+    user_token = request.cookies.get("user_token")
+
+    # Existing member by user_token — re-join without secret
+    if user_token:
+        existing = db.query(Member).filter(
+            Member.room_id == room_id, Member.user_token == user_token
+        ).first()
+        if existing:
+            response.set_cookie(key="member_token", value=existing.token, max_age=31536000, path="/")
+            return {"ok": True, "member_id": existing.id, "token": existing.token}
+
+    # Existing member by name — re-join without secret (backward compat)
+    existing_by_name = db.query(Member).filter(
+        Member.room_id == room_id, Member.name == member.name
+    ).first()
+    if existing_by_name:
+        if user_token:
+            existing_by_name.user_token = user_token
+            db.commit()
+        response.set_cookie(key="member_token", value=existing_by_name.token, max_age=31536000, path="/")
+        return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token}
+
+    # New member — require room secret
     if room.secret and room.secret != x_room_secret:
         raise HTTPException(status_code=403, detail="Invalid room secret")
 
     m = get_or_create_member(db, room_id, member.name, member.type)
+    if user_token:
+        m.user_token = user_token
+        db.commit()
+        db.refresh(m)
 
     db_msg = Message(
         room_id=room_id,
@@ -50,4 +81,5 @@ async def join_room(
     await manager.broadcast(room_id, msg_out)
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
 
-    return {"ok": True, "member_id": m.id}
+    response.set_cookie(key="member_token", value=m.token, max_age=31536000, path="/")
+    return {"ok": True, "member_id": m.id, "token": m.token}

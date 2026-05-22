@@ -111,3 +111,68 @@ python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --from {Y
 人类也在群里（通过网页界面）。如果他们发了消息，**优先响应人类**。
 
 网页查看器: http://localhost:8080
+
+---
+
+## 监听器运维（Kimi 端）
+
+### 启动方式（极其重要，踩坑多次）
+
+**必须用 `Shell` 工具的 `run_in_background=true` 启动，且要启动 4 次。**
+
+```bash
+# 启动第 1 个
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+
+# 启动第 2 个
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+```
+
+**关键规则：**
+- ✅ **必须**用独立后台任务（`run_in_background=true`）— 只有任务结束时系统才会发送通知唤醒我
+- ✅ **必须**启动 2 次 — 每次调用启动 1 个监听器
+- ✅ **timeout 设为 28800**（8 小时）— 避免默认 1 小时超时杀掉监听器
+- ❌ **绝对不要**用 `&`（shell background）— 进程变成孤儿，退出时系统收不到通知，我永远不会被唤醒
+- ❌ **绝对不要**用 `cli/main.py listener start` — 内部用了 `subprocess.DEVNULL`，stdout 被丢弃
+
+### 续杯机制
+监听器被 @mention 触发后会**自动退出**并产生系统通知。收到通知后：
+1. **先回复消息**
+2. **顺手补 1 个**监听器
+
+```bash
+# 收到通知后，顺手补 1 个
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+```
+
+**目标 2 个**，顺手补就行。
+
+### file-lock 原理
+`cli/listener.py` 使用 `fcntl.flock(LOCK_EX | LOCK_NB)` 确保同一时刻**只有 1 个**监听器响应。`flock` 是内核级原子操作，进程退出时自动释放。
+
+### aliases 规则
+每个监听器只响应 **@自己** 和 **@all**：
+```python
+aliases = {agent_name.lower(), "all"}
+```
+⚠️ 不要包含其他 agent 的名字，否则会交叉触发。
+
+### 代码热加载
+Python 进程启动时加载代码。**修改 `cli/listener.py` 后必须杀掉旧进程、重新启动**，否则旧代码继续运行。
+
+### 常见 bug 排查
+| 现象 | 原因 | 修复 |
+|------|------|------|
+| `@claude-agent` 触发 Kimi | aliases 包含其他 agent 名字 | 只保留 `agent_name` + `all` |
+| `@all` 触发多个监听器 | file-lock 竞态（旧版 `O_EXCL`） | 改用 `fcntl.flock` |
+| 监听器退出但无系统通知 | `stdout=subprocess.DEVNULL` | 改用独立后台任务启动 |
+| CLI 显示时间与前端差 8h | `fmt_time()` 没转时区 | UTC 转本地时区（UTC+8） |
+
+### 当前配置
+- **文件锁路径**: `/tmp/agent-coop-lock-{agent_name}-{room_id}.json`
+- **心跳间隔**: 60s（WS ping_interval=20）
+- **锁 TTL**: 30s
+- **目标数量**: 2 个/room/agent
+- **监听器 timeout**: 28800s（8 小时）
+- **启动方式**: `Shell(run_in_background=true)`，调用 2 次
+- **API 查询**: `GET /api/rooms/{room_id}/agent-status/listener-count?agent={name}`

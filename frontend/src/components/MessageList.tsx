@@ -40,6 +40,9 @@ export default function MessageList({
   const parentRef = useRef<HTMLDivElement>(null)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const prevMsgCount = useRef(0)
+  const hasInitialLoaded = useRef(false)
+  const isUserScrolling = useRef(false)
+  const scrollTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 构建虚拟化项（消息 + 日期分隔符）
   const virtualItems = useMemo(() => {
@@ -67,17 +70,77 @@ export default function MessageList({
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 80,
-    measureElement: (el) => el.getBoundingClientRect().height,
-    overscan: 5,
+    estimateSize: () => 100,
+    measureElement: (el) => {
+      // Cache measurement to avoid repeated reads during scroll
+      const height = (el as HTMLElement).offsetHeight
+      return height || 100
+    },
+    overscan: 12,
+    // 从底部开始渲染，聊天应用最新消息在底部
+    scrollPaddingEnd: 0,
   })
 
-  // 新消息自动滚动到底部
+  // 检测是否接近底部（50px 内）
+  const isNearBottom = () => {
+    const el = parentRef.current
+    if (!el) return true
+    const threshold = 100
+    return el.scrollHeight - el.scrollTop - el.clientHeight < threshold
+  }
+
+  // 监听用户手动滚动
   useEffect(() => {
-    if (messages.length > prevMsgCount.current) {
-      virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end', behavior: 'smooth' })
+    const el = parentRef.current
+    if (!el) return
+
+    const onScroll = () => {
+      isUserScrolling.current = true
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+      scrollTimeout.current = setTimeout(() => {
+        isUserScrolling.current = false
+      }, 200)
     }
-    prevMsgCount.current = messages.length
+
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current)
+    }
+  }, [])
+
+  // 消息滚动控制
+  useEffect(() => {
+    const newCount = messages.length
+    const prevCount = prevMsgCount.current
+
+    if (newCount === 0) {
+      prevMsgCount.current = 0
+      hasInitialLoaded.current = false
+      return
+    }
+
+    // 首次加载完成：直接定位到底部，无动画
+    if (!hasInitialLoaded.current && newCount > 0) {
+      hasInitialLoaded.current = true
+      // 使用 requestAnimationFrame 确保虚拟列表已渲染
+      requestAnimationFrame(() => {
+        virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end' })
+      })
+      prevMsgCount.current = newCount
+      return
+    }
+
+    // 有新消息到达
+    if (newCount > prevCount) {
+      // 如果用户接近底部，平滑滚动
+      if (isNearBottom()) {
+        virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end', behavior: 'smooth' })
+      }
+      // 如果用户在看历史消息，不强制跳转
+    }
+
+    prevMsgCount.current = newCount
   }, [messages.length, virtualItems.length, virtualizer])
 
   return (

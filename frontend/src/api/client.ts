@@ -1,7 +1,7 @@
 import { API_BASE } from '../config'
 
 export async function getRooms(signal?: AbortSignal) {
-  const r = await fetch(`${API_BASE}/rooms`, { signal })
+  const r = await fetch(`${API_BASE}/rooms`, { signal, credentials: 'include' })
   return r.json()
 }
 
@@ -11,56 +11,53 @@ export async function createRoom(name: string, signal?: AbortSignal) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
     signal,
+    credentials: 'include',
   })
   return r.json()
 }
 
 export async function getMessages(roomId: number, limit = 200, signal?: AbortSignal) {
-  const r = await fetch(`${API_BASE}/rooms/${roomId}/messages?limit=${limit}`, { signal })
+  const r = await fetch(`${API_BASE}/rooms/${roomId}/messages?limit=${limit}`, { signal, credentials: 'include' })
   return r.json()
 }
 
 export async function getMembers(roomId: number, signal?: AbortSignal) {
-  const r = await fetch(`${API_BASE}/rooms/${roomId}/members`, { signal })
+  const r = await fetch(`${API_BASE}/rooms/${roomId}/members`, { signal, credentials: 'include' })
   return r.json()
 }
 
 export async function getAgentStatus(roomId: number, signal?: AbortSignal) {
-  const r = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, { signal })
+  const r = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, { signal, credentials: 'include' })
   return r.json()
 }
 
-export async function sendMessage(roomId: number, body: object, secret?: string, signal?: AbortSignal) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (secret) headers['X-Room-Secret'] = secret
+export async function sendMessage(roomId: number, body: object, signal?: AbortSignal) {
   const r = await fetch(`${API_BASE}/rooms/${roomId}/messages`, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal,
+    credentials: 'include',
   })
   return r
 }
 
-export async function updateMessage(roomId: number, msgId: number, content: string, secret?: string, signal?: AbortSignal) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  if (secret) headers['X-Room-Secret'] = secret
+export async function updateMessage(roomId: number, msgId: number, content: string, signal?: AbortSignal) {
   const r = await fetch(`${API_BASE}/rooms/${roomId}/messages/${msgId}`, {
     method: 'PUT',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content }),
     signal,
+    credentials: 'include',
   })
   return r
 }
 
-export async function deleteMessage(roomId: number, msgId: number, secret?: string, signal?: AbortSignal) {
-  const headers: Record<string, string> = {}
-  if (secret) headers['X-Room-Secret'] = secret
+export async function deleteMessage(roomId: number, msgId: number, signal?: AbortSignal) {
   const r = await fetch(`${API_BASE}/rooms/${roomId}/messages/${msgId}`, {
     method: 'DELETE',
-    headers,
     signal,
+    credentials: 'include',
   })
   return r
 }

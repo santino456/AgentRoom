@@ -28,9 +28,12 @@ class Room(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True, nullable=False)
     secret = Column(String, default=generate_room_secret, nullable=False)
+    created_by_member_id = Column(Integer, ForeignKey("members.id"), nullable=True)
+    announcement = Column(Text, default="", nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    members = relationship("Member", back_populates="room", cascade="all, delete-orphan")
+    members = relationship("Member", foreign_keys="Member.room_id", back_populates="room", cascade="all, delete-orphan")
+    creator = relationship("Member", foreign_keys=[created_by_member_id])
     messages = relationship("Message", back_populates="room", cascade="all, delete-orphan")
 
 
@@ -41,10 +44,14 @@ class Member(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     name = Column(String, nullable=False)
     type = Column(String, default=MemberType.AGENT)
+    token = Column(String, nullable=True, index=True)
+    user_token = Column(String, nullable=True, index=True)
+    role = Column(String, default="member")
+    description = Column(Text, default="", nullable=False)
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_active = Column(DateTime, default=datetime.utcnow)
 
-    room = relationship("Room", back_populates="members")
+    room = relationship("Room", foreign_keys=[room_id], back_populates="members")
     messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
 
 
@@ -85,3 +92,20 @@ class FileLock(Base):
     agent_name = Column(String, nullable=False)
     acquired_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
+
+
+class Attachment(Base):
+    __tablename__ = "attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
+    uploader_name = Column(String, nullable=False)
+    filename = Column(String, nullable=False)
+    storage_path = Column(String, nullable=False)
+    mime_type = Column(String, nullable=False)
+    size = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    room = relationship("Room")
+    message = relationship("Message")

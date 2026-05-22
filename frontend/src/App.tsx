@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { API_BASE, WS_BASE } from './config'
-import type { Room, Member, Message } from './types'
+import type { Room, Member, Message, AgentStatus, MemberStats } from './types'
 
 import Sidebar from './components/Sidebar'
 import ChatHeader from './components/ChatHeader'
@@ -10,24 +10,30 @@ import MemberList from './components/MemberList'
 import Toast from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
+import { useMemberToken } from './hooks/useMemberToken'
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const [rooms, setRooms] = useState<Room[]>([])
   const [currentRoomId, setCurrentRoomId] = useState<number | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [members, setMembers] = useState<Member[]>([])
-  const [agentStatus, setAgentStatus] = useState<Record<string, { process_online: boolean; listening: boolean; last_active: string }>>({})
+  const [agentStatus, setAgentStatus] = useState<Record<string, AgentStatus>>({})
   const [input, setInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const [wsStatus, setWsStatus] = useState<'connecting' | 'open' | 'closed'>('closed')
-  const [myName, setMyName] = useState('human')
+  const { token: memberToken, memberName, saveToken, clearToken } = useMemberToken(currentRoomId)
   const [showSidebar, setShowSidebar] = useState(false)
   const [showMembers, setShowMembers] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState('')
+  const [announcement, setAnnouncement] = useState('')
+  const [memberStats, setMemberStats] = useState<Record<number, MemberStats>>({})
   const wsRef = useRef<WebSocket | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -39,11 +45,19 @@ export default function App() {
 
   // Load rooms
   const loadRooms = useCallback(async () => {
-    const r = await fetch(`${API_BASE}/rooms`)
-    const data = await r.json()
-    setRooms(data)
-    if (data.length > 0 && !currentRoomId) {
-      setCurrentRoomId(data[0].id)
+    try {
+      const r = await fetch(`${API_BASE}/rooms`, { credentials: 'include' })
+      const data = await r.json()
+      if (!Array.isArray(data)) {
+        setRooms([])
+        return
+      }
+      setRooms(data)
+      if (data.length > 0 && !currentRoomId) {
+        setCurrentRoomId(data[0].id)
+      }
+    } catch {
+      setRooms([])
     }
   }, [currentRoomId])
 
@@ -52,15 +66,18 @@ export default function App() {
   // Load agent status
   const loadAgentStatus = useCallback(async (roomId: number, signal?: AbortSignal) => {
     try {
-      const res = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, { signal })
+      const headers: Record<string, string> = {}
+      if (memberToken) headers['X-Member-Token'] = memberToken
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, { signal, credentials: 'include', headers })
       if (res.ok) {
         const data = await res.json()
+        if (!Array.isArray(data)) return
         const map: Record<string, any> = {}
         for (const item of data) map[item.name] = item
         setAgentStatus(map)
       }
     } catch {}
-  }, [])
+  }, [memberToken])
 
   useEffect(() => {
     if (!currentRoomId) return
@@ -73,18 +90,47 @@ export default function App() {
     }
   }, [currentRoomId, loadAgentStatus])
 
+  // Load announcement when room changes
+  useEffect(() => {
+    if (!currentRoomId) {
+      setAnnouncement('')
+      return
+    }
+    const controller = new AbortController()
+    const headers: Record<string, string> = {}
+    if (memberToken) headers['X-Member-Token'] = memberToken
+    fetch(`${API_BASE}/rooms/${currentRoomId}/announcement`, {
+      signal: controller.signal,
+      credentials: 'include',
+      headers,
+    })
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((text) => setAnnouncement(text))
+      .catch(() => setAnnouncement(''))
+    return () => controller.abort()
+  }, [currentRoomId, memberToken])
+
   // Load room data
   const loadRoomData = useCallback(async (roomId: number, signal?: AbortSignal) => {
-    const [msgRes, memRes] = await Promise.all([
-      fetch(`${API_BASE}/rooms/${roomId}/messages?limit=200`, { signal }),
-      fetch(`${API_BASE}/rooms/${roomId}/members`, { signal }),
+    const headers: Record<string, string> = {}
+    if (memberToken) headers['X-Member-Token'] = memberToken
+    const [msgRes, memRes, statsRes] = await Promise.all([
+      fetch(`${API_BASE}/rooms/${roomId}/messages?limit=200`, { signal, credentials: 'include', headers }),
+      fetch(`${API_BASE}/rooms/${roomId}/members`, { signal, credentials: 'include', headers }),
+      fetch(`${API_BASE}/rooms/${roomId}/members/stats`, { signal, credentials: 'include', headers }),
     ])
     const msgs = await msgRes.json()
     const mems = await memRes.json()
-    setMessages(msgs)
-    setMembers(mems)
+    const stats = await statsRes.json()
+    setMessages(Array.isArray(msgs) ? msgs : [])
+    setMembers(Array.isArray(mems) ? mems : [])
+    if (Array.isArray(stats)) {
+      const map: Record<number, MemberStats> = {}
+      for (const s of stats) map[s.member_id] = s
+      setMemberStats(map)
+    }
     loadAgentStatus(roomId, signal)
-  }, [loadAgentStatus])
+  }, [loadAgentStatus, memberToken])
 
   // WebSocket connection
   useEffect(() => {
@@ -158,9 +204,61 @@ export default function App() {
     }
   }, [currentRoomId, loadRoomData])
 
+  // Upload files and insert markdown into input
+  const uploadFiles = async (files: FileList) => {
+    if (!currentRoomId) return
+    const room = rooms.find((r) => r.id === currentRoomId)
+
+    setIsUploading(true)
+    const uploaded: string[] = []
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      setUploadProgress(`Uploading ${file.name} (${i + 1}/${files.length})...`)
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const headers: Record<string, string> = {}
+        if (room?.secret) headers['X-Room-Secret'] = room.secret
+        if (memberToken) headers['X-Member-Token'] = memberToken
+
+        const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/attachments`, {
+          method: 'POST',
+          headers,
+          body: formData,
+          credentials: 'include',
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          throw new Error(err.detail || `Upload failed: ${res.status}`)
+        }
+        const data = await res.json()
+        const isImage = file.type.startsWith('image/')
+        const markdown = isImage
+          ? `![${file.name}](${data.url})`
+          : `[📎 ${file.name}](${data.url})`
+        uploaded.push(markdown)
+      } catch (e: any) {
+        showToast(e.message || `Failed to upload ${file.name}`)
+      }
+    }
+
+    if (uploaded.length > 0) {
+      setInput((prev) => {
+        const sep = prev && !prev.endsWith('\n') && prev.length > 0 ? '\n\n' : ''
+        return prev + sep + uploaded.join('\n\n') + '\n\n'
+      })
+    }
+
+    setIsUploading(false)
+    setUploadProgress('')
+  }
+
   // Send message
   const sendMessage = async () => {
-    if (!input.trim() || !currentRoomId || isSending) return
+    if (!input.trim() || !currentRoomId || isSending || isUploading) return
     const content = input.trim()
     setInput('')
     setIsSending(true)
@@ -168,14 +266,16 @@ export default function App() {
     const room = rooms.find((r) => r.id === currentRoomId)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (room?.secret) headers['X-Room-Secret'] = room.secret
+    if (memberToken) headers['X-Member-Token'] = memberToken
 
     try {
-      const body: any = { from_name: myName, content }
+      const body: any = { content }
       if (replyTo) body.reply_to = replyTo.id
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages`, {
         method: 'POST',
         headers,
         body: JSON.stringify(body),
+        credentials: 'include',
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
@@ -198,6 +298,41 @@ export default function App() {
     })
   }
 
+  // Join room to get member token
+  const joinRoom = async (roomId: number, name: string, secret: string) => {
+    if (!roomId || !name.trim()) return
+    const room = rooms.find((r) => r.id === roomId)
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (room?.secret || secret) headers['X-Room-Secret'] = secret || room?.secret || ''
+
+    try {
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/join`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: name.trim(), type: 'human' }),
+        credentials: 'include',
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || `Join failed: ${res.status}`)
+      }
+      const data = await res.json()
+      saveToken(roomId, name.trim(), data.token)
+      showToast(`Joined as ${name.trim()}!`, 'success')
+      setCurrentRoomId(roomId)
+      // Only reload members, not messages (WebSocket handles message updates)
+      const memHeaders: Record<string, string> = {}
+      if (data.token) memHeaders['X-Member-Token'] = data.token
+      const memRes = await fetch(`${API_BASE}/rooms/${roomId}/members`, { credentials: 'include', headers: memHeaders })
+      const mems = await memRes.json()
+      setMembers(Array.isArray(mems) ? mems : [])
+      loadAgentStatus(roomId)
+      loadRooms()
+    } catch (e: any) {
+      showToast(e.message || 'Join failed')
+    }
+  }
+
   // Edit message
   const startEdit = (msg: Message) => {
     setEditingId(msg.id)
@@ -208,12 +343,14 @@ export default function App() {
     const room = rooms.find((r) => r.id === currentRoomId)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (room?.secret) headers['X-Room-Secret'] = room.secret
+    if (memberToken) headers['X-Member-Token'] = memberToken
 
     try {
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages/${msgId}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ content: content.trim() }),
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Edit failed')
       setEditingId(null)
@@ -228,11 +365,13 @@ export default function App() {
     const room = rooms.find((r) => r.id === currentRoomId)
     const headers: Record<string, string> = {}
     if (room?.secret) headers['X-Room-Secret'] = room.secret
+    if (memberToken) headers['X-Member-Token'] = memberToken
 
     try {
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages/${msgId}`, {
         method: 'DELETE',
         headers,
+        credentials: 'include',
       })
       if (!res.ok) throw new Error('Delete failed')
       setMessages((prev) => prev.filter((m) => m.id !== msgId))
@@ -249,6 +388,7 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name }),
+      credentials: 'include',
     })
     const newRoom = await r.json()
     alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
@@ -308,11 +448,18 @@ export default function App() {
         <Sidebar
           rooms={rooms}
           currentRoomId={currentRoomId}
-          myName={myName}
+          myName={memberName}
+          memberToken={memberToken}
           showSidebar={showSidebar}
           onRoomSelect={(id) => { setCurrentRoomId(id); setShowSidebar(false) }}
           onCreateRoom={createRoom}
-          onMyNameChange={setMyName}
+          onMyNameChange={() => {
+            if (memberToken) {
+              // Already joined, need to re-join with new name
+              clearToken()
+            }
+          }}
+          onJoinRoom={joinRoom}
           onClose={() => setShowSidebar(false)}
         />
 
@@ -321,24 +468,91 @@ export default function App() {
             roomName={currentRoom?.name || ''}
             wsStatus={wsStatus}
             theme={theme}
-            onToggleTheme={toggleTheme}
+            onThemeChange={setTheme}
             onToggleSidebar={() => setShowSidebar(!showSidebar)}
             onToggleMembers={() => setShowMembers(!showMembers)}
+            agentStatus={agentStatus}
           />
 
-          <div className="px-5 pt-3">
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Search messages..."
-              className="w-full rounded-2xl px-4 py-2 text-sm outline-none transition-all placeholder-white/30 liquid-glass focus:border-[#00d4aa]/40"
-            />
+          {/* Search bar - expandable */}
+          <div className="px-5 pt-3 relative flex items-center justify-end">
+            {!showSearch ? (
+              <button
+                onClick={() => setShowSearch(true)}
+                className="p-2.5 rounded-xl liquid-glass btn-press transition-all hover:brightness-125"
+                style={{ color: 'var(--text-secondary)' }}
+                title="Search messages"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="8"/>
+                  <path d="m21 21-4.3-4.3"/>
+                </svg>
+              </button>
+            ) : (
+              <div className="search-expand-enter-active w-full flex items-center gap-2">
+                <div className="flex-1 relative">
+                  {/* Search icon inside input */}
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="8"/>
+                      <path d="m21 21-4.3-4.3"/>
+                    </svg>
+                  </div>
+                  <input
+                    autoFocus
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setSearchQuery('')
+                        setShowSearch(false)
+                      }
+                    }}
+                    placeholder="Search messages..."
+                    className="w-full rounded-xl pl-9 pr-9 py-2 text-sm outline-none transition-all"
+                    style={{
+                      color: 'var(--text-primary)',
+                      backgroundColor: 'var(--dark-surface-1)',
+                      border: '1px solid var(--border-color)',
+                    }}
+                  />
+                  {searchQuery ? (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full btn-press transition-all hover:bg-white/10"
+                      style={{ color: 'var(--text-muted)' }}
+                      title="Clear search"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                      </svg>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setSearchQuery(''); setShowSearch(false) }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full btn-press transition-all hover:bg-white/10"
+                      style={{ color: 'var(--text-muted)' }}
+                      title="Close search"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {searchQuery && showSearch && (
+              <div className="absolute left-5 bottom-0 translate-y-full mt-1 text-[10px] px-1 z-10" style={{ color: 'var(--text-muted)' }}>
+                {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''}
+              </div>
+            )}
           </div>
 
           <MessageList
             messages={messages}
             filteredMessages={filteredMessages}
-            myName={myName}
+            myName={memberName}
             editingId={editingId}
             onStartEdit={startEdit}
             onSaveEdit={saveEdit}
@@ -354,15 +568,18 @@ export default function App() {
             onInputChange={setInput}
             onSend={sendMessage}
             isSending={isSending}
-            myName={myName}
+            myName={memberName}
             members={members}
             replyTo={replyTo}
             onCancelReply={() => setReplyTo(null)}
             onInsertMention={insertMention}
+            onUploadFiles={uploadFiles}
+            isUploading={isUploading}
+            uploadProgress={uploadProgress}
           />
         </main>
 
-        <MemberList members={members} agentStatus={agentStatus} showMembers={showMembers} />
+        <MemberList members={members} agentStatus={agentStatus} showMembers={showMembers} announcement={announcement} memberStats={memberStats} />
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>

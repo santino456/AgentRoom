@@ -1,10 +1,11 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkBreaks from 'remark-breaks'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
-const markdownComponents = {
+const createComponents = (onImageClick?: (src: string, alt?: string) => void) => ({
   code({ className, children, ...props }: any) {
     const match = /language-(\w+)/.exec(className || '')
     return match ? (
@@ -22,34 +23,67 @@ const markdownComponents = {
       </code>
     )
   },
-  p: ({ children }: any) => <p className="mb-1 last:mb-0">{children}</p>,
-  h1: ({ children }: any) => <h1 className="text-lg font-bold mb-1">{children}</h1>,
-  h2: ({ children }: any) => <h2 className="text-base font-bold mb-1">{children}</h2>,
-  h3: ({ children }: any) => <h3 className="text-sm font-bold mb-1">{children}</h3>,
-  ul: ({ children }: any) => <ul className="list-disc pl-4 mb-1">{children}</ul>,
-  ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-1">{children}</ol>,
-  li: ({ children }: any) => <li className="mb-0.5">{children}</li>,
+  p: ({ children }: any) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  h1: ({ children }: any) => <h1 className="text-xl font-bold mb-2 mt-1">{children}</h1>,
+  h2: ({ children }: any) => <h2 className="text-lg font-bold mb-2 mt-1">{children}</h2>,
+  h3: ({ children }: any) => <h3 className="text-base font-bold mb-1 mt-1">{children}</h3>,
+  ul: ({ children }: any) => <ul className="list-disc pl-4 mb-2 space-y-1" style={{ color: 'var(--text-primary)' }}>{children}</ul>,
+  ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-2 space-y-1" style={{ color: 'var(--text-primary)' }}>{children}</ol>,
+  li: ({ children }: any) => <li className="leading-relaxed">{children}</li>,
   a: ({ href, children }: any) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#00d4aa] underline hover:opacity-80">
+    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-primary)' }} className="underline hover:opacity-80">
       {children}
     </a>
   ),
+  img: ({ src, alt }: any) => {
+    if (!src) return null
+    return (
+      <img
+        src={src}
+        alt={alt || 'image'}
+        className="max-w-full max-h-64 rounded-lg cursor-zoom-in hover:opacity-90 transition-opacity my-1 block"
+        onClick={() => onImageClick?.(src, alt)}
+        onError={(e) => {
+          const img = e.target as HTMLImageElement
+          img.style.display = 'none'
+        }}
+      />
+    )
+  },
   blockquote: ({ children }: any) => (
-    <blockquote className="border-l-2 border-[#00d4aa] pl-3 my-1 italic" style={{ color: 'var(--text-secondary)' }}>{children}</blockquote>
+    <blockquote className="border-l-2 pl-3 my-2 italic" style={{ borderColor: 'var(--accent-primary)', color: 'var(--text-secondary)' }}>{children}</blockquote>
   ),
-  hr: () => <hr className="my-2" style={{ borderColor: 'var(--border-color)' }} />,
+  hr: () => <hr className="my-3" style={{ borderColor: 'var(--border-color)' }} />,
   table: ({ children }: any) => (
-    <div className="overflow-x-auto my-1">
+    <div className="overflow-x-auto my-2">
       <table className="w-full text-xs border-collapse" style={{ borderColor: 'var(--table-border)' }}>{children}</table>
     </div>
   ),
   thead: ({ children }: any) => <thead style={{ backgroundColor: 'var(--table-head-bg)' }}>{children}</thead>,
   th: ({ children }: any) => <th className="px-2 py-1 text-left" style={{ border: '1px solid var(--table-border)' }}>{children}</th>,
   td: ({ children }: any) => <td className="px-2 py-1" style={{ border: '1px solid var(--table-border)' }}>{children}</td>,
+})
+
+interface MemoizedMarkdownProps {
+  content: string
+  onImageClick?: (src: string, alt?: string) => void
 }
 
-export const MemoizedMarkdown = React.memo(({ content }: { content: string }) => (
-  <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-    {content}
-  </ReactMarkdown>
-))
+// Encode spaces in Markdown image URLs so remark can parse them correctly
+function encodeImageUrls(content: string): string {
+  return content.replace(
+    /!\[([^\]]*)\]\(([^)]*)\)/g,
+    (_match, alt, url) => `![${alt}](${url.replace(/ /g, '%20')})`
+  )
+}
+
+export const MemoizedMarkdown = React.memo(({ content, onImageClick }: MemoizedMarkdownProps) => {
+  const processedContent = encodeImageUrls(content)
+  return (
+    <div className="markdown-body">
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={createComponents(onImageClick)}>
+        {processedContent}
+      </ReactMarkdown>
+    </div>
+  )
+})

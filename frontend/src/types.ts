@@ -10,6 +10,18 @@ export interface Member {
   name: string
   type: string
   last_active: string
+  role?: string
+  description?: string
+}
+
+export interface MemberStats {
+  member_id: number
+  name: string
+  type: string
+  role: string
+  description: string
+  message_count: number
+  last_message_at: string | null
 }
 
 export interface Message {
@@ -26,4 +38,5 @@ export interface AgentStatus {
   process_online: boolean
   listening: boolean
   last_active: string
+  type: string
 }

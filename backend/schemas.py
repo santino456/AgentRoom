@@ -14,6 +14,7 @@ class RoomOut(BaseModel):
     id: int
     name: str
     secret: str
+    announcement: str = ""
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -28,6 +29,9 @@ class MemberOut(BaseModel):
     id: int
     name: str
     type: str
+    token: Optional[str] = None
+    role: str = "member"
+    description: str = ""
     joined_at: datetime
     last_active: datetime
 
@@ -35,10 +39,10 @@ class MemberOut(BaseModel):
 
 
 class MessageCreate(BaseModel):
-    from_name: str = Field(..., max_length=settings.max_member_name_length)
     content: str = Field(..., max_length=settings.max_message_length)
     to_name: Optional[str] = None
     msg_type: str = "message"
+    attachment_ids: Optional[list[int]] = None
 
 
 class MessageUpdate(BaseModel):
@@ -54,6 +58,7 @@ class MessageOut(BaseModel):
     msg_type: str
     created_at: datetime
     updated_at: Optional[datetime] = None
+    attachments: list[dict] = []
 
     model_config = {"from_attributes": True}
 
@@ -80,6 +85,24 @@ class WebhookOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class MemberStatsOut(BaseModel):
+    member_id: int
+    name: str
+    type: str
+    role: str
+    description: str
+    message_count: int
+    last_message_at: Optional[datetime] = None
+
+
+class MemberDescriptionUpdate(BaseModel):
+    description: str = Field(..., max_length=500)
+
+
+class RoomAnnouncementUpdate(BaseModel):
+    announcement: str = Field(..., max_length=2000)
 
 
 class AgentStatusOut(BaseModel):

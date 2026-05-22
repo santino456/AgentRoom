@@ -1,16 +1,17 @@
 import asyncio
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Room, Member, Message
+from models import Room, Member, Message, Attachment
 from schemas import MessageCreate, MessageUpdate, MessageOut, PaginatedMessages
 from websocket import manager
-from services.member_service import get_or_create_member
 from services.webhook_service import trigger_webhooks
 from rate_limiter import limiter
 from logging_config import get_logger
+from dependencies import get_current_member, get_optional_member
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
 logger = get_logger("messages")
@@ -23,12 +24,8 @@ def _get_room(room_id: int, db: Session) -> Room:
     return room
 
 
-def _verify_secret(room: Room, secret: str):
-    if room.secret and room.secret != secret:
-        raise HTTPException(status_code=403, detail="Invalid room secret")
-
-
 def _message_to_dict(m, db: Session):
+    attachments = db.query(Attachment).filter(Attachment.message_id == m.id).all()
     return {
         "id": m.id,
         "room_id": m.room_id,
@@ -38,12 +35,32 @@ def _message_to_dict(m, db: Session):
         "msg_type": m.msg_type,
         "created_at": m.created_at,
         "updated_at": m.updated_at,
+        "attachments": [
+            {
+                "id": a.id,
+                "filename": a.filename,
+                "mime_type": a.mime_type,
+                "size": a.size,
+                "url": f"/uploads/room_{m.room_id}/{Path(a.storage_path).name}",
+            }
+            for a in attachments
+        ],
     }
 
 
 @router.get("", response_model=list[MessageOut])
-def list_messages(room_id: int, limit: int = 100, offset: int = 0, db: Session = Depends(get_db)):
+def list_messages(
+    room_id: int,
+    limit: int = 100,
+    offset: int = 0,
+    request: Request = None,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
     _get_room(room_id, db)
+    # Verify membership
+    get_current_member(room_id, request, x_member_token, db)
+
     msgs = (
         db.query(Message)
         .filter(Message.room_id == room_id)
@@ -57,8 +74,17 @@ def list_messages(room_id: int, limit: int = 100, offset: int = 0, db: Session =
 
 
 @router.get("/paginated", response_model=PaginatedMessages)
-def list_messages_paginated(room_id: int, limit: int = 50, offset: int = 0, db: Session = Depends(get_db)):
+def list_messages_paginated(
+    room_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    request: Request = None,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
     _get_room(room_id, db)
+    get_current_member(room_id, request, x_member_token, db)
+
     total = db.query(Message).filter(Message.room_id == room_id).count()
     msgs = (
         db.query(Message)
@@ -80,16 +106,16 @@ def list_messages_paginated(room_id: int, limit: int = 50, offset: int = 0, db: 
 async def create_message(
     room_id: int,
     msg: MessageCreate,
-    x_room_secret: str = Header(default=""),
+    request: Request,
+    x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    if not limiter.is_allowed(f"msg:{room_id}:{msg.from_name}", limit=30, window_seconds=60):
-        raise HTTPException(status_code=429, detail="Rate limit exceeded: 30 messages per minute")
-
     room = _get_room(room_id, db)
-    _verify_secret(room, x_room_secret)
 
-    sender = get_or_create_member(db, room_id, msg.from_name, "agent")
+    sender = get_current_member(room_id, request, x_member_token, db)
+
+    if not limiter.is_allowed(f"msg:{room_id}:{sender.id}", limit=30, window_seconds=60):
+        raise HTTPException(status_code=429, detail="Rate limit exceeded: 30 messages per minute")
 
     to_member_id = None
     if msg.to_name:
@@ -108,6 +134,18 @@ async def create_message(
     db.commit()
     db.refresh(db_msg)
 
+    # Link attachments to this message
+    if msg.attachment_ids:
+        for att_id in msg.attachment_ids:
+            att = db.query(Attachment).filter(
+                Attachment.id == att_id,
+                Attachment.room_id == room_id,
+            ).first()
+            if att:
+                att.message_id = db_msg.id
+        db.commit()
+
+    attachments = db.query(Attachment).filter(Attachment.message_id == db_msg.id).all()
     msg_out = {
         "id": db_msg.id,
         "room_id": db_msg.room_id,
@@ -117,6 +155,16 @@ async def create_message(
         "msg_type": db_msg.msg_type,
         "created_at": db_msg.created_at.isoformat(),
         "updated_at": db_msg.updated_at.isoformat() if db_msg.updated_at else None,
+        "attachments": [
+            {
+                "id": a.id,
+                "filename": a.filename,
+                "mime_type": a.mime_type,
+                "size": a.size,
+                "url": f"/uploads/room_{room_id}/{Path(a.storage_path).name}",
+            }
+            for a in attachments
+        ],
     }
     await manager.broadcast(room_id, msg_out)
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
@@ -130,7 +178,7 @@ async def create_message(
                 room_id=room_id,
                 msg_id=db_msg.id,
                 agent=alias,
-                sender=msg.from_name,
+                sender=sender.name,
             )
             break
 
@@ -142,11 +190,12 @@ async def update_message(
     room_id: int,
     message_id: int,
     update: MessageUpdate,
-    x_room_secret: str = Header(default=""),
+    request: Request,
+    x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    room = _get_room(room_id, db)
-    _verify_secret(room, x_room_secret)
+    _get_room(room_id, db)
+    get_current_member(room_id, request, x_member_token, db)
 
     db_msg = db.query(Message).filter(Message.id == message_id, Message.room_id == room_id).first()
     if not db_msg:
@@ -156,6 +205,7 @@ async def update_message(
     db.commit()
     db.refresh(db_msg)
 
+    attachments = db.query(Attachment).filter(Attachment.message_id == db_msg.id).all()
     msg_out = {
         "id": db_msg.id,
         "room_id": db_msg.room_id,
@@ -165,6 +215,16 @@ async def update_message(
         "msg_type": db_msg.msg_type,
         "created_at": db_msg.created_at.isoformat(),
         "updated_at": db_msg.updated_at.isoformat() if db_msg.updated_at else None,
+        "attachments": [
+            {
+                "id": a.id,
+                "filename": a.filename,
+                "mime_type": a.mime_type,
+                "size": a.size,
+                "url": f"/uploads/room_{room_id}/{Path(a.storage_path).name}",
+            }
+            for a in attachments
+        ],
     }
     await manager.broadcast(room_id, msg_out)
     return msg_out
@@ -174,11 +234,12 @@ async def update_message(
 async def delete_message(
     room_id: int,
     message_id: int,
-    x_room_secret: str = Header(default=""),
+    request: Request,
+    x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    room = _get_room(room_id, db)
-    _verify_secret(room, x_room_secret)
+    _get_room(room_id, db)
+    get_current_member(room_id, request, x_member_token, db)
 
     db_msg = db.query(Message).filter(Message.id == message_id, Message.room_id == room_id).first()
     if not db_msg:

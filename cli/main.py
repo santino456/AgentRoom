@@ -5,20 +5,56 @@ Agent Coop CLI — Agent 协作命令行工具
 
 import click
 import httpx
+import json
 import os
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 BASE_URL = "http://127.0.0.1:8080/api"
 
+CLI_CONFIG_DIR = Path.home() / ".agent-coop"
+
+
+def _config_path(agent_name: str = "default") -> Path:
+    return CLI_CONFIG_DIR / f"cli-config-{agent_name}.json"
+
+
+def _load_config(agent_name: str = "default"):
+    path = _config_path(agent_name)
+    if path.exists():
+        with open(path, "r") as f:
+            return json.load(f)
+    return {}
+
+
+def _save_config(cfg, agent_name: str = "default"):
+    CLI_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(_config_path(agent_name), "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+def _get_member_token(room_id: int, agent_name: str = "") -> str:
+    cfg = _load_config(agent_name)
+    return cfg.get("tokens", {}).get(str(room_id), "")
+
 
 def fmt_time(iso):
+    from datetime import datetime, timezone, timedelta
     try:
-        return iso[11:16]
+        # 后端返回 UTC，先附加 UTC 时区，再转本地时区（UTC+8）
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        local = dt.astimezone(timezone(timedelta(hours=8)))
+        return local.strftime("%H:%M")
     except Exception:
-        return ""
+        try:
+            return iso[11:16]
+        except Exception:
+            return ""
 
 
 @click.group()
@@ -72,6 +108,12 @@ def room_join(room_id, name, type_, secret):
         headers["X-Room-Secret"] = secret
     r = httpx.post(f"{BASE_URL}/rooms/{room_id}/join", json={"name": name, "type": type_}, headers=headers)
     if r.status_code == 200:
+        data = r.json()
+        token = data.get("token")
+        if token:
+            cfg = _load_config(name)
+            cfg.setdefault("tokens", {})[str(room_id)] = token
+            _save_config(cfg, name)
         click.echo(f"✅ @{name} 已加入房间 {room_id}")
     else:
         click.echo(f"❌ 失败: {r.text}")
@@ -82,22 +124,30 @@ def room_join(room_id, name, type_, secret):
 @cli.command()
 @click.argument("room_id", type=int)
 @click.argument("content")
-@click.option("--from", "from_", default="human", help="发送者名称")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
 @click.option("--to", default=None, help="@特定人")
 @click.option("--secret", default="", help="房间 secret (可选，若房间已启用认证)")
-def send(room_id, content, from_, to, secret):
+def send(room_id, content, agent_name, to, secret):
     """发送消息到房间"""
-    payload = {"from_name": from_, "content": content}
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    # Convert shell-escaped sequences to real characters
+    content = content.replace("\\n", "\n").replace("\\t", "\t")
+    payload = {"content": content}
     if to:
         payload["to_name"] = to
-    headers = {}
+    headers = {"X-Member-Token": token}
     if secret:
         headers["X-Room-Secret"] = secret
     r = httpx.post(f"{BASE_URL}/rooms/{room_id}/messages", json=payload, headers=headers)
     if r.status_code == 200:
         msg = r.json()
+        sender = msg.get("sender_name", "unknown")
         to_str = f" -> @{to}" if to else ""
-        click.echo(f"📨 [{fmt_time(msg['created_at'])}] {from_}{to_str}: {content}")
+        click.echo(f"📨 [{fmt_time(msg['created_at'])}] {sender}{to_str}: {content}")
     else:
         click.echo(f"❌ 发送失败: {r.text}")
 
@@ -259,6 +309,55 @@ def listener_status():
     click.echo("🎧 运行中的监听器:")
     for agent, room, pid in listeners:
         click.echo(f"   • {agent} | room {room} | PID {pid}")
+
+
+# ---------- Describe ----------
+
+@cli.command()
+@click.argument("room_id", type=int)
+@click.argument("description")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--secret", default="", help="房间 secret (可选)")
+def describe(room_id, description, agent_name, secret):
+    """设置自己在房间中的角色描述（会自动保存到 AGENTS.md 提醒）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    headers = {"X-Member-Token": token}
+    if secret:
+        headers["X-Room-Secret"] = secret
+
+    # Find my member ID
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员列表失败: {r.text}")
+        return
+
+    my_id = None
+    for m in r.json():
+        if m.get("token") == token:
+            my_id = m["id"]
+            break
+
+    if my_id is None:
+        click.echo("❌ 无法找到当前成员 ID")
+        return
+
+    # Update description
+    r = httpx.put(
+        f"{BASE_URL}/rooms/{room_id}/members/{my_id}/description",
+        json={"description": description},
+        headers=headers,
+    )
+    if r.status_code == 200:
+        click.echo(f"✅ 角色描述已更新: {description}")
+        click.echo("\n💡 提醒：请将以下信息写入你的 AGENTS.md，防止会话丢失：")
+        click.echo(f"   角色: {description}")
+        click.echo(f"   房间: {room_id}")
+    else:
+        click.echo(f"❌ 更新失败: {r.text}")
 
 
 if __name__ == "__main__":

@@ -11,15 +11,26 @@ import argparse
 import asyncio
 import json
 import os
+import random
 import sys
 import time
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import websockets
 
 sys.path.insert(0, str(Path(__file__).parent))
 from config_loader import load_config, get_agent_config, get_global_config
+
+
+def _is_process_alive(pid: int) -> bool:
+    """检查指定 PID 的进程是否仍在运行。"""
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
 
 
 def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bool:
@@ -49,11 +60,13 @@ def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bo
                 data = json.loads(data_raw)
                 lock_time = data.get("timestamp", 0)
                 lock_pid = data.get("pid", 0)
-                # 检查锁是否过期（且持有进程已不存在）
-                if now - lock_time <= ttl_seconds:
-                    # 锁未过期，归别人持有
+                # 锁在 TTL 内且持有进程还活着 → 归别人持有
+                if now - lock_time <= ttl_seconds and _is_process_alive(lock_pid):
+                    # 释放 flock 并关闭 fd，让其他进程有机会竞争
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                    os.close(fd)
                     return False
-                # 锁已过期，继续执行（在 flock 保护下清理并重新写入）
+                # 否则视为过期/孤儿锁，继续执行并覆盖
         except Exception:
             pass  # 文件为空或损坏，视为可获取
 
@@ -64,17 +77,20 @@ def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bo
         os.write(fd, lock_data.encode())
         os.fsync(fd)
         return True
-    finally:
-        # 注意：不要在这里解锁（fcntl.flock(fd, fcntl.LOCK_UN)），
-        # 因为进程退出时内核会自动释放 flock。
-        # 保持 fd 打开直到进程退出，确保其他进程看到锁被占用。
-        pass
+    except Exception:
+        # 异常时释放锁并关闭 fd
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+        raise
 
 
-def api_get(base_url: str, path: str):
+def api_get(base_url: str, path: str, headers: dict = None):
     try:
         req = urllib.request.Request(f"{base_url}{path}", method="GET")
         req.add_header("Accept", "application/json")
+        if headers:
+            for k, v in headers.items():
+                req.add_header(k, v)
         with urllib.request.urlopen(req, timeout=5) as resp:
             return json.loads(resp.read().decode())
     except Exception:
@@ -92,13 +108,15 @@ def count_running_listeners(base_url: str, room_id: int, agent_name: str) -> int
     return 0
 
 
-def fetch_messages(base_url: str, room_id: int, limit: int = 50):
-    return api_get(base_url, f"/api/rooms/{room_id}/messages?limit={limit}") or []
+def fetch_messages(base_url: str, room_id: int, token: str = "", limit: int = 50):
+    headers = {"X-Member-Token": token} if token else None
+    return api_get(base_url, f"/api/rooms/{room_id}/messages?limit={limit}", headers) or []
 
 
-def fetch_members(base_url: str, room_id: int):
+def fetch_members(base_url: str, room_id: int, token: str = ""):
     """获取房间成员列表，用于动态识别 @ 目标。"""
-    return api_get(base_url, f"/api/rooms/{room_id}/members") or []
+    headers = {"X-Member-Token": token} if token else None
+    return api_get(base_url, f"/api/rooms/{room_id}/members", headers) or []
 
 
 def build_aliases_from_members(members: list, agent_name: str) -> list[str]:
@@ -120,6 +138,67 @@ def is_mentioning(content: str, aliases: list[str]) -> bool:
     return False
 
 
+def _check_missed_mentions(
+    base_http: str,
+    room_id: int,
+    agent_name: str,
+    aliases: list[str],
+    last_seen_id: int,
+    start_time: float,
+    token: str = "",
+):
+    """启动时兜底：检查最近 2 分钟是否有 @ 自己的消息被漏掉。"""
+    cutoff = start_time - 120  # 2 分钟前
+    recent = fetch_messages(base_http, room_id, token, limit=20)
+    missed = []
+    for m in recent:
+        if m["id"] > last_seen_id:
+            continue
+        sender = m.get("sender_name") or ""
+        if sender.lower() == agent_name.lower():
+            continue
+        if m.get("msg_type") != "message":
+            continue
+        created = m.get("created_at", "")
+        try:
+            # 解析 ISO 时间
+            if created.endswith("Z"):
+                created = created[:-1] + "+00:00"
+            msg_ts = datetime.fromisoformat(created).timestamp()
+        except Exception:
+            continue
+        if msg_ts < cutoff:
+            continue
+        if is_mentioning(m.get("content", ""), aliases):
+            missed.append(m)
+
+    if missed:
+        print(f"[{agent_name}] WARNING: {len(missed)} missed @ mention(s) detected!", flush=True)
+        # 尝试获取锁并立即输出
+        if try_acquire_lock(agent_name, room_id):
+            print(f"\n{'=' * 50}", flush=True)
+            print(f"ALERT: @{agent_name} mentioned! (missed during dead window)", flush=True)
+            print(f"{'=' * 50}", flush=True)
+            for m in missed:
+                ts = m.get("created_at", "")[:19]
+                sender = m.get("sender_name", "unknown")
+                print(f"[{ts}] @{sender}: {m.get('content', '')}", flush=True)
+            print(f"\n{'=' * 50}", flush=True)
+            print("EXIT_WITH_MESSAGES", flush=True)
+            sys.exit(0)
+
+
+def _get_member_token(room_id: int, agent_name: str) -> str:
+    import json
+    from pathlib import Path
+    config_path = Path.home() / ".agent-coop" / f"cli-config-{agent_name}.json"
+    if config_path.exists():
+        with open(config_path, "r") as f:
+            cfg = json.load(f)
+        return cfg.get("tokens", {}).get(str(room_id), "")
+    return ""
+
+
 async def listen_websocket(
     room_id: int,
     agent_name: str,
@@ -130,11 +209,12 @@ async def listen_websocket(
     max_reconnect_delay: int,
     timeout: int = None,
 ):
-    init_msgs = fetch_messages(base_http, room_id)
+    token = _get_member_token(room_id, agent_name)
+    init_msgs = fetch_messages(base_http, room_id, token)
     last_seen_id = max((m["id"] for m in init_msgs), default=0)
 
     # 动态获取成员列表构建 aliases
-    members = fetch_members(base_http, room_id)
+    members = fetch_members(base_http, room_id, token)
     aliases = build_aliases_from_members(members, agent_name)
     if not aliases or aliases == ["all"]:
         aliases = fallback_aliases
@@ -145,10 +225,20 @@ async def listen_websocket(
     print(f"[{agent_name}] Room {room_id} | Timeout {timeout}s", flush=True)
     print(f"[{agent_name}] Baseline ID: {last_seen_id}", flush=True)
 
+    start_time = time.time()
+
+    # 兜底：启动时扫描最近 2 分钟的消息，防止「全死窗口」漏掉 @
+    try:
+        _check_missed_mentions(
+            base_http, room_id, agent_name, aliases,
+            last_seen_id, start_time, token
+        )
+    except Exception as e:
+        print(f"[{agent_name}] _check_missed_mentions skipped: {e}", flush=True)
+
     pending_messages = []
     ws_url = f"{base_ws}/ws/{room_id}"
     reconnect_delay = 1.0
-    start_time = time.time()
 
     while True:
         if timeout and (time.time() - start_time) > timeout:
@@ -174,8 +264,20 @@ async def listen_websocket(
                 heartbeat_task = asyncio.create_task(heartbeat_loop())
 
                 try:
-                    async for raw in ws:
-                        if timeout and (time.time() - start_time) > timeout:
+                    while True:
+                        # 超时检查：在等待消息之前也要检查
+                        elapsed = time.time() - start_time
+                        if timeout and elapsed > timeout:
+                            print(f"\n[{agent_name}] Timeout ({timeout}s). No mentions.", flush=True)
+                            return pending_messages, "timeout"
+
+                        remaining = None
+                        if timeout:
+                            remaining = max(0.1, timeout - elapsed)
+
+                        try:
+                            raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
+                        except asyncio.TimeoutError:
                             print(f"\n[{agent_name}] Timeout ({timeout}s). No mentions.", flush=True)
                             return pending_messages, "timeout"
 
@@ -207,8 +309,8 @@ async def listen_websocket(
                                 continue
 
                             # 拉取上下文
-                            recent = fetch_messages(base_http, room_id, limit=10)
-                            context = [m for m in recent if m["id"] > last_seen_id - 20]
+                            recent = fetch_messages(base_http, room_id, token, limit=5)
+                            context = [m for m in recent if m["id"] > last_seen_id - 10]
                             seen = set()
                             all_msgs = []
                             for m in context + pending_messages:
@@ -227,14 +329,23 @@ async def listen_websocket(
                             print(f"\n{'=' * 50}", flush=True)
                             print("EXIT_WITH_MESSAGES", flush=True)
 
+                            print(f"\n{'=' * 50}", flush=True)
+                            print("ACTION ORDER:", flush=True)
+                            print("  1. 先立刻去平台回复 @ 消息", flush=True)
+                            print("  2. 顺手补监听器（如果需要）", flush=True)
+                            print("  3. 再去做该做的事", flush=True)
+                            print(f"{'=' * 50}", flush=True)
+
                             remaining = count_running_listeners(base_http, room_id, agent_name)
-                            need = max(0, 4 - remaining)
-                            print(f"\n[Listener Status] Running: {remaining} | Pool: 4 | Refill: {need}", flush=True)
-                            print("  Note: Pool is a buffer, 2-3 is fine. Reply first, refill when convenient.", flush=True)
+                            need = max(0, 2 - remaining)
+                            print(f"\n[Listener Status] Running: {remaining} | Pool: 2 | Refill: {need}", flush=True)
+                            print("  Note: Pool is a buffer, 2 is fine. Reply first, refill when convenient.", flush=True)
                             if need > 0:
                                 print(f"  Command: .venv/bin/python cli/listener.py --agent {agent_name} --room {room_id}", flush=True)
                             return all_msgs, "mention"
 
+                except websockets.exceptions.ConnectionClosed:
+                    raise
                 finally:
                     heartbeat_task.cancel()
                     try:
@@ -294,6 +405,12 @@ def main():
     heartbeat = global_cfg.get("heartbeat_interval", 20)
     max_reconnect = global_cfg.get("reconnect_max_delay", 30)
 
+    # 加随机 jitter，避免多个监听器同时 timeout
+    timeout = args.timeout
+    if timeout:
+        timeout = int(timeout * (0.8 + random.random() * 0.4))  # 80%~120% 浮动
+        print(f"[{args.agent}] Timeout jittered: {timeout}s", flush=True)
+
     try:
         asyncio.run(listen_websocket(
             room_id=room_id,
@@ -303,7 +420,7 @@ def main():
             base_ws=base_ws,
             heartbeat_interval=heartbeat,
             max_reconnect_delay=max_reconnect,
-            timeout=args.timeout,
+            timeout=timeout,
         ))
     except KeyboardInterrupt:
         print(f"\n[{args.agent}] Stopped")

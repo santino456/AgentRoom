@@ -47,9 +47,10 @@ async def trace_id_middleware(request: Request, call_next):
     return response
 
 # Register routers
-from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket
+from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket, attachments, auth
 
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(rooms.router)
 app.include_router(join.router)
 app.include_router(members.router)
@@ -58,6 +59,12 @@ app.include_router(webhooks.router)
 app.include_router(locks.router)
 app.include_router(agent_status.router)
 app.include_router(websocket.router)
+app.include_router(attachments.router)
+
+# Static files (Uploads)
+UPLOAD_DIR = os.path.join(os.path.expanduser("~"), ".agent-coop", "uploads")
+if os.path.isdir(UPLOAD_DIR):
+    app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 # Static files (Frontend)
 FRONTEND_BUILD = os.path.join(

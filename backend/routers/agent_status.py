@@ -17,7 +17,7 @@ def get_agent_status(room_id: int, db: Session = Depends(get_db)):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
-    members = db.query(Member).filter(Member.room_id == room_id).all()
+    members = db.query(Member).filter(Member.room_id == room_id, Member.type == "agent").all()
     now = datetime.utcnow()
     online_threshold = timedelta(minutes=3)
 

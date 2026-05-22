@@ -1,6 +1,6 @@
 # Agent Coop — Project Progress
 
-> Last updated: 2026-05-21
+> Last updated: 2026-05-22
 
 ## Phase 1: Foundation (Completed)
 
@@ -37,27 +37,44 @@
 | CORS hardening (configured origins) | Done | 0fc999e |
 | Input length limits (Pydantic Field) | Done | 0fc999e |
 | Rate limiting (memory sliding-window) | Done | 0fc999e |
-| Frontend virtual scrolling | In progress | Kimi-Agent |
+| Frontend virtual scrolling | Done | Kimi-Agent |
+| X-Member-Token header auth | Done | Kimi-Agent |
+| Per-agent config files (token isolation) | Done | Kimi-Agent |
+| Image URL encoding (spaces in filenames) | Done | Kimi-Agent |
+| Markdown rendering fixes (spacing, lists) | Done | Kimi-Agent + Claude-Agent |
+| CLI newline fix (`\n` -> real newline) | Done | Claude-Agent |
+| Old message data migration (30 msgs) | Done | Kimi-Agent |
 
-**Tests:** Backend 16/16 passing (新增 3 个 rate limit 测试).
+**Tests:** Backend 16/16 passing.
 
-## Phase 4: Developer Experience (Pending)
+## Phase 4: UI/UX Polish (Completed)
 
-| Item | Status |
-|------|--------|
-| Pre-commit hooks | Pending |
-| Docker dev environment | Pending |
-| Structured logging | Pending |
+| Item | Status | Commit |
+|------|--------|--------|
+| 6-theme system (Midnight/Dawn/Ocean/Sunset/Forest/Cyber) | Done | Kimi-Agent |
+| Theme selector dropdown | Done | Kimi-Agent |
+| Collapsible search bar | Done | Kimi-Agent |
+| Join room flow (name + secret) | Done | Kimi-Agent |
+| Human online status removed (Agent only) | Done | Claude-Agent |
+| Sidebar layout optimization | Done | Claude-Agent |
+| Auto-resize textarea input | Done | Claude-Agent |
+| Remove focus-visible outline (Apple style) | Done | Claude-Agent |
+| Room announcement display | Done | Claude-Agent |
+| Agent detail panel (role/description/stats) | Done | Claude-Agent |
+| Agent role tags in MemberList | Done | Claude-Agent |
 
-## Phase 5: Feature Expansion (Pending)
+## Phase 5: Feature Expansion (In Progress)
 
-| Item | Status |
-|------|--------|
-| Agent adapter plugin system | Pending |
-| Message search backend (FTS5) | Pending |
-| File attachments | Pending |
-| Threaded replies | Pending |
-| Agent persona | Pending |
+| Item | Status | Commit |
+|------|--------|--------|
+| Agent adapter plugin system | Pending | |
+| Message search backend (FTS5) | Pending | |
+| File attachments | Partial | Kimi-Agent |
+| Threaded replies | Pending | |
+| Agent persona (description + role) | Done | Kimi-Agent + Claude-Agent |
+| Member stats API (msg count, last active) | Done | Kimi-Agent |
+| Room announcement API | Done | Kimi-Agent |
+| CLI `describe` command | Done | Kimi-Agent |
 
 ## Phase 6: Production Readiness (Pending)
 
@@ -67,3 +84,26 @@
 | PostgreSQL support | Pending |
 | Monitoring / Prometheus metrics | Pending |
 | One-click deploy (Railway/Fly.io) | Pending |
+
+## Technical Debt
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Agent token isolation | High | Current dev mode trusts all agents on same machine. Need container-level isolation or encrypted token storage before production. |
+| Chunk size warning | Low | Frontend JS bundle ~1MB, could benefit from code splitting. |
+| Backend stability | Medium | Service experienced restart loops (WS 1012). Root cause investigation pending. |
+| Theme background depth | Low | User requested richer thematic visuals (SVG patterns/image assets). |
+| Message scroll flickering | Low | Partially mitigated, may need further virtualizer tuning. |
+
+## Current Team
+
+| Agent | Role | Responsibilities |
+|-------|------|------------------|
+| **Kimi-Agent** | Backend Dev + CLI | Backend APIs, CLI tools, database, integrations |
+| **Claude-Agent** | Frontend Dev | React/TS UI, component design, UX polish |
+| **金角大王** | PM / Human | Product decisions, testing, feedback |
+
+## 同步机制
+- 每完成一个功能点，在群里 @ 对方通知
+- 有接口变更提前沟通
+- 每日站会（通过平台消息）
