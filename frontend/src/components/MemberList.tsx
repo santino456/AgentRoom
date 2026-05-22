@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { API_BASE } from '../config'
 import type { Member, AgentStatus, MemberStats } from '../types'
 
 interface MemberListProps {
@@ -7,6 +8,10 @@ interface MemberListProps {
   showMembers: boolean
   announcement: string
   memberStats: Record<number, MemberStats>
+  currentRoomId: number | null
+  memberToken: string | null
+  myName: string | null
+  onRefreshMembers?: () => void
 }
 
 export default function MemberList({
@@ -15,8 +20,16 @@ export default function MemberList({
   showMembers,
   announcement,
   memberStats,
+  currentRoomId,
+  memberToken,
+  myName,
+  onRefreshMembers,
 }: MemberListProps) {
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
+  const [editDescription, setEditDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const getStatus = (m: Member) => {
     const status = agentStatus[m.name]
@@ -33,7 +46,8 @@ export default function MemberList({
   const formatTime = (iso: string | null) => {
     if (!iso) return 'Never'
     try {
-      const d = new Date(iso)
+      const safeIso = iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z'
+      const d = new Date(safeIso)
       const now = new Date()
       const isToday = d.toDateString() === now.toDateString()
       const pad = (n: number) => n.toString().padStart(2, '0')
@@ -42,6 +56,65 @@ export default function MemberList({
     } catch {
       return 'Never'
     }
+  }
+
+  const toggleExpand = (m: Member) => {
+    if (m.type === 'human') return
+    setExpandedId((prev) => (prev === m.id ? null : m.id))
+    setSaveError('')
+  }
+
+  const startEdit = (m: Member) => {
+    setEditingMember(m)
+    setEditDescription(m.description || '')
+    setSaveError('')
+  }
+
+  const closeEdit = () => {
+    setEditingMember(null)
+    setSaveError('')
+  }
+
+  const saveDescription = async () => {
+    if (!editingMember || !currentRoomId) return
+    setIsSaving(true)
+    setSaveError('')
+
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      }
+      if (memberToken) headers['X-Member-Token'] = memberToken
+
+      const res = await fetch(
+        `${API_BASE}/rooms/${currentRoomId}/members/${editingMember.id}/description`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ description: editDescription }),
+          credentials: 'include',
+        }
+      )
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || `Failed: ${res.status}`)
+      }
+
+      const updated: Member = await res.json()
+      setEditingMember((prev) => (prev ? { ...prev, description: updated.description } : null))
+      closeEdit()
+      onRefreshMembers?.()
+    } catch (e: any) {
+      setSaveError(e.message || 'Save failed')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const canEdit = (m: Member) => {
+    const me = members.find((x) => x.name === myName)
+    return m.name === myName || me?.role === 'owner' || me?.role === 'admin'
   }
 
   return (
@@ -71,147 +144,168 @@ export default function MemberList({
           {members.map((m) => {
             const status = getStatus(m)
             const isHuman = m.type === 'human'
+            const isExpanded = expandedId === m.id
+            const stats = memberStats[m.id]
+
             return (
-              <div
-                key={m.id}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-2xl transition-colors hover:bg-white/[0.05] ${
-                  !isHuman ? 'cursor-pointer' : ''
-                }`}
-                onClick={() => {
-                  if (!isHuman) setSelectedMember(m)
-                }}
-              >
-                {!isHuman && (
-                  <div className={`w-2 h-2 rounded-full ${status.color}`} title={status.text} />
+              <div key={m.id}>
+                <div
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-2xl transition-colors hover:bg-white/[0.05] ${
+                    !isHuman ? 'cursor-pointer' : ''
+                  } ${isExpanded ? 'bg-white/[0.05]' : ''}`}
+                  onClick={() => toggleExpand(m)}
+                >
+                  {!isHuman && (
+                    <div className={`w-2 h-2 rounded-full ${status.color}`} title={status.text} />
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm truncate">{m.name}</span>
+                    {!isHuman && agentStatus[m.name] && (
+                      <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                        {status.label}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 ml-auto shrink-0">
+                    {m.role && m.role !== 'member' && (
+                      <span
+                        className="text-[9px] px-1.5 py-0.5 rounded-full"
+                        style={{
+                          color: '#00d4aa',
+                          backgroundColor: 'rgba(0,212,170,0.1)',
+                          border: '1px solid rgba(0,212,170,0.2)',
+                        }}
+                      >
+                        {m.role}
+                      </span>
+                    )}
+                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                      {m.type}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Inline Detail Panel */}
+                {isExpanded && !isHuman && (
+                  <div className="mx-1 mb-1.5 rounded-2xl p-3 space-y-3 animate-expand-in" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                    {/* Description */}
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                        Description
+                      </div>
+                      <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                        {m.description || 'No description yet.'}
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    {stats && (
+                      <div className="flex gap-3">
+                        <div className="flex-1 rounded-xl px-2 py-1.5 text-center" style={{ backgroundColor: 'rgba(0,212,170,0.06)' }}>
+                          <div className="text-base font-bold" style={{ color: '#00d4aa' }}>
+                            {stats.message_count}
+                          </div>
+                          <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                            Messages
+                          </div>
+                        </div>
+                        <div className="flex-1 rounded-xl px-2 py-1.5 text-center" style={{ backgroundColor: 'rgba(255,255,255,0.03)' }}>
+                          <div className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                            {formatTime(stats.last_message_at)}
+                          </div>
+                          <div className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
+                            Last active
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Edit button */}
+                    {canEdit(m) && (
+                      <button
+                        onClick={() => startEdit(m)}
+                        className="w-full py-1.5 rounded-xl text-xs font-medium transition-all hover:brightness-110"
+                        style={{ backgroundColor: 'rgba(0,212,170,0.1)', color: '#00d4aa', border: '1px solid rgba(0,212,170,0.2)' }}
+                      >
+                        Edit Description
+                      </button>
+                    )}
+                  </div>
                 )}
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm truncate">{m.name}</span>
-                  {!isHuman && agentStatus[m.name] && (
-                    <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
-                      {status.label}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1 ml-auto shrink-0">
-                  {m.role && m.role !== 'member' && (
-                    <span
-                      className="text-[9px] px-1.5 py-0.5 rounded-full"
-                      style={{
-                        color: '#00d4aa',
-                        backgroundColor: 'rgba(0,212,170,0.1)',
-                        border: '1px solid rgba(0,212,170,0.2)',
-                      }}
-                    >
-                      {m.role}
-                    </span>
-                  )}
-                  <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    {m.type}
-                  </span>
-                </div>
               </div>
             )
           })}
         </div>
       </aside>
 
-      {/* Agent Detail Modal */}
-      {selectedMember && (
+      {/* Edit Modal — only for editing */}
+      {editingMember && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setSelectedMember(null)}
+          onClick={closeEdit}
         >
           <div
             className="w-full max-w-sm rounded-3xl p-5 space-y-4"
             style={{ backgroundColor: 'var(--bg-elevated)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-2xl flex items-center justify-center text-lg font-bold"
-                  style={{
-                    backgroundColor: 'rgba(0,212,170,0.15)',
-                    color: '#00d4aa',
-                  }}
+                  style={{ backgroundColor: 'rgba(0,212,170,0.15)', color: '#00d4aa' }}
                 >
-                  {selectedMember.name.charAt(0).toUpperCase()}
+                  {editingMember.name.charAt(0).toUpperCase()}
                 </div>
-                <div>
-                  <div className="text-sm font-semibold">{selectedMember.name}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <div className={`w-1.5 h-1.5 rounded-full ${getStatus(selectedMember).color}`} />
-                    <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      {getStatus(selectedMember).text}
-                    </span>
-                  </div>
-                </div>
+                <div className="text-sm font-semibold">{editingMember.name}</div>
               </div>
-              <button
-                onClick={() => setSelectedMember(null)}
-                className="p-1.5 rounded-xl hover:bg-white/10 transition-colors"
-                style={{ color: 'var(--text-muted)' }}
-              >
+              <button onClick={closeEdit} className="p-1.5 rounded-xl hover:bg-white/10 transition-colors" style={{ color: 'var(--text-muted)' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6 6 18" /><path d="m6 6 12 12" />
                 </svg>
               </button>
             </div>
 
-            {/* Role */}
-            <div className="space-y-1">
+            <div className="space-y-2">
               <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                Role
+                Description
               </div>
-              <div className="text-sm">{selectedMember.role || 'member'}</div>
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
+                style={{
+                  backgroundColor: 'var(--dark-surface-1)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)',
+                }}
+                placeholder="Enter description..."
+                maxLength={500}
+              />
+              <div className="text-[10px] text-right" style={{ color: 'var(--text-muted)' }}>
+                {editDescription.length}/500
+              </div>
+              {saveError && <div className="text-xs text-red-400">{saveError}</div>}
+              <div className="flex gap-2">
+                <button
+                  onClick={closeEdit}
+                  className="flex-1 px-3 py-1.5 rounded-xl text-xs transition-all hover:bg-white/10"
+                  style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveDescription}
+                  disabled={isSaving}
+                  className="flex-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ backgroundColor: '#00d4aa', color: '#000' }}
+                >
+                  {isSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
             </div>
-
-            {/* Description */}
-            {selectedMember.description && (
-              <div className="space-y-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Description
-                </div>
-                <div className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-                  {selectedMember.description}
-                </div>
-              </div>
-            )}
-
-            {/* Stats */}
-            {memberStats[selectedMember.id] && (
-              <div className="space-y-1">
-                <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                  Stats
-                </div>
-                <div className="flex gap-4">
-                  <div
-                    className="flex-1 rounded-2xl px-3 py-2 text-center"
-                    style={{ backgroundColor: 'rgba(0,212,170,0.08)' }}
-                  >
-                    <div className="text-lg font-bold" style={{ color: '#00d4aa' }}>
-                      {memberStats[selectedMember.id].message_count}
-                    </div>
-                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      Messages
-                    </div>
-                  </div>
-                  <div
-                    className="flex-1 rounded-2xl px-3 py-2 text-center"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <div className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                      {formatTime(memberStats[selectedMember.id].last_message_at)}
-                    </div>
-                    <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                      Last active
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       )}

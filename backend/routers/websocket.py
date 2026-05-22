@@ -1,4 +1,5 @@
 import json
+import asyncio
 from datetime import datetime
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -11,17 +12,39 @@ from logging_config import get_logger
 router = APIRouter()
 logger = get_logger("websocket")
 
+PING_INTERVAL = 30  # seconds
+PING_TIMEOUT = 10   # seconds
+
 
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: int):
     await manager.connect(room_id, websocket)
+    last_pong = asyncio.get_event_loop().time()
     try:
         while True:
-            data = await websocket.receive_text()
-            # Client heartbeat
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_text(),
+                    timeout=PING_INTERVAL
+                )
+            except asyncio.TimeoutError:
+                # Send ping and wait for pong
+                now = asyncio.get_event_loop().time()
+                if now - last_pong > PING_INTERVAL + PING_TIMEOUT:
+                    logger.warning("websocket_ping_timeout", room_id=room_id)
+                    break
+                await websocket.send_text('{"type":"ping"}')
+                continue
+
+            # Client heartbeat response
+            if data == "pong":
+                last_pong = asyncio.get_event_loop().time()
+                continue
             if data == "ping":
                 await websocket.send_text('{"type":"pong"}')
+                last_pong = asyncio.get_event_loop().time()
                 continue
+
             # Agent heartbeat: update last_active + register WS connection
             db = None
             try:
@@ -43,4 +66,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int):
                 if db:
                     db.close()
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(room_id, websocket)

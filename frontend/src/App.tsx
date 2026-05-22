@@ -34,6 +34,10 @@ export default function App() {
   const [uploadProgress, setUploadProgress] = useState('')
   const [announcement, setAnnouncement] = useState('')
   const [memberStats, setMemberStats] = useState<Record<number, MemberStats>>({})
+  const [searchResults, setSearchResults] = useState<Message[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -109,6 +113,86 @@ export default function App() {
       .catch(() => setAnnouncement(''))
     return () => controller.abort()
   }, [currentRoomId, memberToken])
+
+  // Debounced search
+  useEffect(() => {
+    if (!currentRoomId || !searchQuery.trim()) {
+      setSearchResults([])
+      setIsSearching(false)
+      return
+    }
+    if (searchTimer.current) clearTimeout(searchTimer.current)
+    setIsSearching(true)
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const headers: Record<string, string> = {}
+        if (memberToken) headers['X-Member-Token'] = memberToken
+        const res = await fetch(
+          `${API_BASE}/rooms/${currentRoomId}/search?q=${encodeURIComponent(searchQuery.trim())}&limit=50`,
+          { credentials: 'include', headers }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setSearchResults(Array.isArray(data) ? data : [])
+        }
+      } catch {
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 300)
+    return () => {
+      if (searchTimer.current) clearTimeout(searchTimer.current)
+    }
+  }, [searchQuery, currentRoomId, memberToken])
+
+  // Load draft when room changes
+  useEffect(() => {
+    if (!currentRoomId) {
+      setInput('')
+      return
+    }
+    const headers: Record<string, string> = {}
+    if (memberToken) headers['X-Member-Token'] = memberToken
+    fetch(`${API_BASE}/rooms/${currentRoomId}/draft`, { credentials: 'include', headers })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.content) setInput(data.content)
+        else setInput('')
+      })
+      .catch(() => setInput(''))
+  }, [currentRoomId, memberToken])
+
+  // Auto-save draft
+  useEffect(() => {
+    if (!currentRoomId) return
+    if (draftTimer.current) clearTimeout(draftTimer.current)
+    draftTimer.current = setTimeout(async () => {
+      try {
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        }
+        if (memberToken) headers['X-Member-Token'] = memberToken
+        if (input.trim()) {
+          await fetch(`${API_BASE}/rooms/${currentRoomId}/draft`, {
+            method: 'PUT',
+            headers,
+            body: JSON.stringify({ content: input }),
+            credentials: 'include',
+          })
+        } else {
+          await fetch(`${API_BASE}/rooms/${currentRoomId}/draft`, {
+            method: 'DELETE',
+            headers,
+            credentials: 'include',
+          })
+        }
+      } catch {}
+    }, 2000)
+    return () => {
+      if (draftTimer.current) clearTimeout(draftTimer.current)
+    }
+  }, [input, currentRoomId, memberToken])
 
   // Load room data
   const loadRoomData = useCallback(async (roomId: number, signal?: AbortSignal) => {
@@ -282,6 +366,16 @@ export default function App() {
         throw new Error(err.detail || `Failed: ${res.status}`)
       }
       setReplyTo(null)
+      // Delete draft after successful send
+      try {
+        const draftHeaders: Record<string, string> = {}
+        if (memberToken) draftHeaders['X-Member-Token'] = memberToken
+        fetch(`${API_BASE}/rooms/${currentRoomId}/draft`, {
+          method: 'DELETE',
+          headers: draftHeaders,
+          credentials: 'include',
+        })
+      } catch {}
     } catch (e: any) {
       showToast(e.message || 'Send failed')
       setInput(content)
@@ -422,13 +516,15 @@ export default function App() {
 
   const filteredMessages = useMemo(() => {
     if (!searchQuery.trim()) return messages
+    if (searchResults.length > 0) return searchResults
+    // Fallback to client-side filtering if backend search fails/empty
     const q = searchQuery.toLowerCase()
     return messages.filter(
       (msg) =>
         (msg.content || '').toLowerCase().includes(q) ||
         (msg.sender_name || '').toLowerCase().includes(q)
     )
-  }, [messages, searchQuery])
+  }, [messages, searchQuery, searchResults])
 
   return (
     <ErrorBoundary>
@@ -542,9 +638,9 @@ export default function App() {
                 </div>
               </div>
             )}
-            {searchQuery && showSearch && (
+            {showSearch && (
               <div className="absolute left-5 bottom-0 translate-y-full mt-1 text-[10px] px-1 z-10" style={{ color: 'var(--text-muted)' }}>
-                {filteredMessages.length} result{filteredMessages.length !== 1 ? 's' : ''}
+                {isSearching ? 'Searching...' : searchQuery ? `${filteredMessages.length} result${filteredMessages.length !== 1 ? 's' : ''}` : ''}
               </div>
             )}
           </div>
@@ -579,7 +675,17 @@ export default function App() {
           />
         </main>
 
-        <MemberList members={members} agentStatus={agentStatus} showMembers={showMembers} announcement={announcement} memberStats={memberStats} />
+        <MemberList
+          members={members}
+          agentStatus={agentStatus}
+          showMembers={showMembers}
+          announcement={announcement}
+          memberStats={memberStats}
+          currentRoomId={currentRoomId}
+          memberToken={memberToken}
+          myName={memberName}
+          onRefreshMembers={() => currentRoomId && loadRoomData(currentRoomId)}
+        />
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>

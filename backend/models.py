@@ -109,3 +109,31 @@ class Attachment(Base):
 
     room = relationship("Room")
     message = relationship("Message")
+
+
+class DraftMessage(Base):
+    __tablename__ = "draft_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    member_id = Column(Integer, ForeignKey("members.id"), nullable=False)
+    content = Column(Text, default="", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    room = relationship("Room")
+    member = relationship("Member")
+
+
+class MessageRead(Base):
+    __tablename__ = "message_reads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
+    member_id = Column(Integer, ForeignKey("members.id"), nullable=False)
+    message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
+    read_at = Column(DateTime, default=datetime.utcnow)
+
+    room = relationship("Room")
+    member = relationship("Member")
+    message = relationship("Message")

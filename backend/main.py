@@ -47,7 +47,7 @@ async def trace_id_middleware(request: Request, call_next):
     return response
 
 # Register routers
-from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket, attachments, auth
+from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket, attachments, auth, drafts, search, invites, read_status
 
 app.include_router(health.router)
 app.include_router(auth.router)
@@ -60,6 +60,10 @@ app.include_router(locks.router)
 app.include_router(agent_status.router)
 app.include_router(websocket.router)
 app.include_router(attachments.router)
+app.include_router(drafts.router)
+app.include_router(search.router)
+app.include_router(invites.router)
+app.include_router(read_status.router)
 
 # Static files (Uploads)
 UPLOAD_DIR = os.path.join(os.path.expanduser("~"), ".agent-coop", "uploads")

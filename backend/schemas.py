@@ -128,3 +128,13 @@ class LockOut(BaseModel):
     expires_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class DraftOut(BaseModel):
+    id: int
+    room_id: int
+    member_id: int
+    content: str
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

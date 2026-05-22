@@ -547,3 +547,20 @@ button:focus-visible {
   animation: dropdownIn 150ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
   transform-origin: top right;
 }
+
+/* Inline expand animation for MemberList detail panel */
+@keyframes expandIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scaleY(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+.animate-expand-in {
+  animation: expandIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: top center;
+}
