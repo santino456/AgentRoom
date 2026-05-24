@@ -400,43 +400,41 @@ async def listen_websocket(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Agent Coop — Unified Listener")
+    parser = argparse.ArgumentParser(description="AgentRoom — Unified Listener")
     parser.add_argument("--agent", required=True, help="Agent name (e.g. claude-agent, Kimi-Agent)")
     parser.add_argument("--room", type=int, default=1, help="Room ID")
     parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
-    parser.add_argument("--config", default="config/agents.yaml", help="Config file path")
+    parser.add_argument("--config", default="config/agents.yaml", help="Config file path (optional)")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="HTTP base URL")
+    parser.add_argument("--ws-base", default="ws://127.0.0.1:8080", help="WebSocket base URL")
     args = parser.parse_args()
 
-    # Load config
-    try:
-        config = load_config(args.config)
-    except Exception as e:
-        print(f"[ERROR] Failed to load config: {e}", flush=True)
-        sys.exit(1)
+    # Try to load config, but it's optional
+    aliases = [args.agent]
+    base_http = args.base_url
+    base_ws = args.ws_base
+    heartbeat = 20
+    max_reconnect = 30
 
-    try:
-        agent_cfg = get_agent_config(config, args.agent)
-    except ValueError as e:
-        print(f"[ERROR] {e}", flush=True)
-        sys.exit(1)
-
-    if not agent_cfg.get("enabled", True):
-        print(f"[ERROR] Agent '{args.agent}' is disabled.", flush=True)
-        sys.exit(1)
-
-    aliases = agent_cfg.get("aliases", [args.agent])
-    rooms = agent_cfg.get("rooms", [])
-    if not rooms:
-        print(f"[ERROR] No rooms configured for '{args.agent}'", flush=True)
-        sys.exit(1)
+    config_path = Path(args.config)
+    if config_path.exists():
+        try:
+            config = load_config(str(config_path))
+            try:
+                agent_cfg = get_agent_config(config, args.agent)
+                if agent_cfg.get("enabled", True):
+                    aliases = agent_cfg.get("aliases", [args.agent])
+                    global_cfg = get_global_config(config)
+                    base_http = global_cfg.get("base_url", base_http)
+                    base_ws = global_cfg.get("ws_base", base_ws)
+                    heartbeat = global_cfg.get("heartbeat_interval", heartbeat)
+                    max_reconnect = global_cfg.get("reconnect_max_delay", max_reconnect)
+            except ValueError:
+                pass  # Agent not in config, use defaults
+        except Exception as e:
+            print(f"[WARN] Failed to load config: {e}, using defaults", flush=True)
 
     room_id = args.room
-
-    global_cfg = get_global_config(config)
-    base_http = global_cfg.get("base_url", "http://127.0.0.1:8080")
-    base_ws = global_cfg.get("ws_base", "ws://127.0.0.1:8080")
-    heartbeat = global_cfg.get("heartbeat_interval", 20)
-    max_reconnect = global_cfg.get("reconnect_max_delay", 30)
 
     # 加随机 jitter，避免多个监听器同时 timeout
     timeout = args.timeout
