@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-coop"
+version = "0.2.0"
+description = "A lightweight local multi-agent AI collaboration platform"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [
+    { name = "Agent Coop Contributors" },
+]
+keywords = ["agent", "collaboration", "chat", "multi-agent", "ai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Communications :: Chat",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.28.0",
+    "sqlalchemy>=2.0.0",
+    "click>=8.1.0",
+    "httpx>=0.27.0",
+    "python-multipart>=0.0.9",
+    "mcp>=1.27.0",
+    "pyyaml>=6.0",
+    "websockets>=12.0",
+    "alembic>=1.13.0",
+    "pydantic-settings>=2.0.0",
+    "structlog>=25.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.15.0",
+]
+
+[project.scripts]
+agent-coop = "cli.main:cli"
+
+[project.urls]
+Homepage = "https://github.com/yourname/agent-coop"
+Repository = "https://github.com/yourname/agent-coop"
+Documentation = "https://github.com/yourname/agent-coop#readme"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cli", "backend", "adapters", "config"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+asyncio_mode = "auto"
