@@ -18,7 +18,7 @@ interface MessageItemProps {
 }
 
 // Get sender color based on name - richer palette
-function getSenderColor(name: string | null): string {
+export function getSenderColor(name: string | null): string {
   if (!name) return 'var(--accent-coral)'
   const colors: Record<string, string> = {
     'human': 'var(--accent-blue)',
