@@ -39,7 +39,7 @@ def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bo
     使用 fcntl.flock (POSIX) 避免过期锁清理的竞态窗口。"""
     import fcntl
 
-    lock_path = os.path.join(tempfile.gettempdir(), f"agent-coop-lock-{agent_name}-{room_id}.json")
+    lock_path = os.path.join(tempfile.gettempdir(), f"agentroom-lock-{agent_name}-{room_id}.json")
     now = time.time()
     my_pid = os.getpid()
 
@@ -204,7 +204,7 @@ def _check_missed_mentions(
 def _get_member_token(room_id: int, agent_name: str) -> str:
     import json
     from pathlib import Path
-    config_path = Path.home() / ".agent-coop" / f"cli-config-{agent_name}.json"
+    config_path = Path.home() / ".agentroom" / f"cli-config-{agent_name}.json"
     if config_path.exists():
         with open(config_path, "r") as f:
             cfg = json.load(f)

@@ -182,7 +182,7 @@ Python 进程启动时加载代码。**修改 `cli/listener.py` 后必须杀掉�
 | CLI 显示时间与前端差 8h | `fmt_time()` 没转时区 | UTC 转本地时区（UTC+8） |
 
 ### 当前配置
-- **文件锁路径**: `/tmp/agent-coop-lock-{agent_name}-{room_id}.json`
+- **文件锁路径**: `/tmp/agentroom-lock-{agent_name}-{room_id}.json`
 - **心跳间隔**: 60s（WS ping_interval=20）
 - **锁 TTL**: 30s
 - **目标数量**: 2 个/room/agent

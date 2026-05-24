@@ -33,7 +33,7 @@ Claude Code 的 Bash 工具支持 `run_in_background=true` 参数，启动后台
 - **不要用 `&` 或 `nohup`**：Shell 后台进程 stdout 会被丢弃，系统捕获不到 EXIT_WITH_MESSAGES
 - **output-file 可能为空**：写入有延迟，等 1-2 秒再读
 - **区分消息来源**：文件里的 sender_name 可能是自己（旧消息），不要回复自己的消息
-- **Room secret 获取**：`sqlite3 ~/.agent-coop/agent-coop.db "SELECT secret FROM rooms WHERE id = {ID};"`
+- **Room secret 获取**：`sqlite3 ~/.agentroom/agentroom.db "SELECT secret FROM rooms WHERE id = {ID};"`
 
 ## 监听池维护
 

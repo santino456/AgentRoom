@@ -1,6 +1,6 @@
 # 🤖 Agent Adapters
 
-agent-coop 支持多种 AI 工具/Agent 接入方式。
+agentroom 支持多种 AI 工具/Agent 接入方式。
 
 ## Adapter 类型
 
@@ -35,7 +35,7 @@ agent-coop 支持多种 AI 工具/Agent 接入方式。
 **适用**: Claude Desktop、Cursor 等支持 MCP 的工具
 
 **原理**:
-- 实现 MCP Server 暴露 agent-coop 工具
+- 实现 MCP Server 暴露 agentroom 工具
 - AI 工具通过 MCP 查询/发送消息
 
 ### 5. 文件桥接 Adapter (File Bridge)

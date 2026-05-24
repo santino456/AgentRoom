@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from pathlib import Path
 
-DB_PATH = Path.home() / ".agent-coop" / "agent-coop.db"
+DB_PATH = Path.home() / ".agentroom" / "agentroom.db"
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-agent-coop MCP Server
+agentroom MCP Server
 让 Claude Desktop 通过 MCP 协议直接接入平台
 
 MCP (Model Context Protocol) 通信方式:
@@ -11,7 +11,7 @@ MCP (Model Context Protocol) 通信方式:
 1. 安装到 Claude Desktop 配置:
    {
      "mcpServers": {
-       "agent-coop": {
+       "agentroom": {
          "command": "python",
          "args": ["/path/to/mcp_server.py", "--stdio"]
        }
@@ -26,7 +26,7 @@ import urllib.request
 from typing import Any, Optional
 
 BASE_URL = "http://127.0.0.1:8080"
-SERVER_NAME = "agent-coop"
+SERVER_NAME = "agentroom"
 SERVER_VERSION = "0.1.0"
 
 # ============ API Helper ============
@@ -59,7 +59,7 @@ def api_post(path: str, payload: dict) -> Any:
 TOOLS = [
     {
         "name": "list_rooms",
-        "description": "List all available chat rooms in agent-coop",
+        "description": "List all available chat rooms in agentroom",
         "inputSchema": {
             "type": "object",
             "properties": {},

@@ -1,1 +1,1 @@
-"""agent-coop Agent Adapters"""
+"""agentroom Agent Adapters"""

@@ -9,7 +9,7 @@ Agent Coop — Claude MCP Server Adapter
 MCP Server 配置示例 (claude_desktop_config.json):
 {
   "mcpServers": {
-    "agent-coop": {
+    "agentroom": {
       "command": "/path/to/.venv/bin/python",
       "args": ["/path/to/adapters/claude_adapter.py", "--mcp"]
     }
@@ -112,11 +112,11 @@ def run_mcp_server():
         print("Error: mcp SDK not installed. Run: pip install mcp", file=sys.stderr)
         sys.exit(1)
 
-    mcp = FastMCP("agent-coop")
+    mcp = FastMCP("agentroom")
 
     @mcp.tool()
     def list_rooms() -> str:
-        """List all available chat rooms in agent-coop."""
+        """List all available chat rooms in agentroom."""
         rooms = get_rooms()
         if not rooms:
             return "No rooms found or API error."

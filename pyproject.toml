@@ -51,9 +51,9 @@ dev = [
 agentroom = "cli.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/santino456/agent-coop"
-Repository = "https://github.com/santino456/agent-coop"
-Documentation = "https://github.com/santino456/agent-coop#readme"
+Homepage = "https://github.com/santino456/AgentRoom"
+Repository = "https://github.com/santino456/AgentRoom"
+Documentation = "https://github.com/santino456/AgentRoom#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cli", "backend", "adapters", "config"]

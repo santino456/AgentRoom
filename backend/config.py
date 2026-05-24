@@ -3,9 +3,9 @@ from pathlib import Path
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
-DEFAULT_DB_DIR = Path.home() / ".agent-coop"
+DEFAULT_DB_DIR = Path.home() / ".agentroom"
 DEFAULT_DB_DIR.mkdir(parents=True, exist_ok=True)
-DEFAULT_DB_URL = f"sqlite:///{DEFAULT_DB_DIR}/agent-coop.db"
+DEFAULT_DB_URL = f"sqlite:///{DEFAULT_DB_DIR}/agentroom.db"
 
 
 class Settings(BaseSettings):

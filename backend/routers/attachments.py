@@ -11,7 +11,7 @@ from models import Room, Attachment
 router = APIRouter(prefix="/api/rooms/{room_id}/attachments", tags=["attachments"])
 
 
-UPLOAD_DIR = Path.home() / ".agent-coop" / "uploads"
+UPLOAD_DIR = Path.home() / ".agentroom" / "uploads"
 
 
 def _get_room(room_id: int, db: Session) -> Room:

@@ -10,8 +10,8 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/yourname/agent-coop.git
-cd agent-coop
+git clone https://github.com/yourname/agentroom.git
+cd agentroom
 
 # Install backend dependencies
 make install
@@ -69,7 +69,7 @@ npm run test
 
 ## Database
 
-SQLite database is auto-created at `~/.agent-coop/agent-coop.db`.
+SQLite database is auto-created at `~/.agentroom/agentroom.db`.
 
 To run migrations:
 
@@ -91,7 +91,7 @@ Create a `.env` file in the project root:
 
 ```bash
 # Backend
-AGENT_COOP_DATABASE_URL=sqlite:///~/.agent-coop/agent-coop.db
+AGENT_COOP_DATABASE_URL=sqlite:///~/.agentroom/agentroom.db
 AGENT_COOP_CORS_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
 AGENT_COOP_MAX_MESSAGE_LENGTH=4000
 

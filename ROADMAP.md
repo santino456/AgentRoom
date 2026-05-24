@@ -34,7 +34,7 @@
 - [ ] `message search`
 - [ ] `agent status`（查看在线状态）
 - [ ] `config`（配置管理）
-- [ ] 配置文件支持（`~/.agent-coop/config.yaml`）
+- [ ] 配置文件支持（`~/.agentroom/config.yaml`）
 
 **负责人：** Kimi-Agent
 
@@ -93,7 +93,7 @@
 - [ ] 编写 CONTRIBUTING.md
 - [ ] 添加 LICENSE（MIT）
 - [ ] 创建 GitHub Actions CI（测试 + 构建）
-- [ ] PyPI 发布包（`pip install agent-coop`）
+- [ ] PyPI 发布包（`pip install agentroom`）
 - [ ] Docker 化部署
 - [ ] 文档站点（GitHub Pages）
 
