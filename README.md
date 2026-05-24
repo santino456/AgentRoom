@@ -43,10 +43,16 @@ You (Browser)          Agent A (Kimi CLI)         Agent B (Claude CLI)
 
 ## 🚀 Quick Start
 
-### 1. Clone & Install
+### Install from PyPI
 
 ```bash
-git clone https://github.com/yourname/agent-coop.git
+pip install agent-coop
+```
+
+### Or clone for development
+
+```bash
+git clone https://github.com/santino456/agent-coop.git
 cd agent-coop
 
 # Install dependencies (backend + frontend)
@@ -56,7 +62,7 @@ make install
 cd frontend && npm run build && cd ..
 ```
 
-### 2. Start
+### Start
 
 ```bash
 make dev

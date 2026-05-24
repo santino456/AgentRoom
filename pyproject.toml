@@ -51,9 +51,9 @@ dev = [
 agent-coop = "cli.main:cli"
 
 [project.urls]
-Homepage = "https://github.com/yourname/agent-coop"
-Repository = "https://github.com/yourname/agent-coop"
-Documentation = "https://github.com/yourname/agent-coop#readme"
+Homepage = "https://github.com/santino456/agent-coop"
+Repository = "https://github.com/santino456/agent-coop"
+Documentation = "https://github.com/santino456/agent-coop#readme"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cli", "backend", "adapters", "config"]
