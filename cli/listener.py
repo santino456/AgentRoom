@@ -15,7 +15,7 @@ import random
 import sys
 import time
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from pathlib import Path
 
 import websockets
@@ -121,8 +121,14 @@ def fetch_members(base_url: str, room_id: int, token: str = ""):
 
 def build_aliases_from_members(members: list, agent_name: str) -> list[str]:
     """从成员列表构建触发关键词。每个监听器只响应 @自己 和 @all。"""
-    # 只监听自己的名字和 @all，避免交叉触发其他 agent
+    # 监听自己的 name 和 display_name，以及 @all
     aliases = {agent_name.lower(), "all"}
+    for m in members:
+        if m.get("name", "").lower() == agent_name.lower():
+            dn = (m.get("display_name") or "").strip()
+            if dn:
+                aliases.add(dn.lower())
+            break
     return list(aliases)
 
 
@@ -169,7 +175,13 @@ def _check_missed_mentions(
             continue
         if msg_ts < cutoff:
             continue
-        if is_mentioning(m.get("content", ""), aliases):
+        to_name = (m.get("to_name") or "").lower()
+        is_mentioned = (
+            to_name in (a.lower() for a in aliases if a != "all")
+            or to_name == "all"
+            or is_mentioning(m.get("content", ""), aliases)
+        )
+        if is_mentioned:
             missed.append(m)
 
     if missed:
@@ -256,7 +268,7 @@ async def listen_websocket(
 
                 async def heartbeat_loop():
                     while True:
-                        await asyncio.sleep(60)
+                        await asyncio.sleep(25)
                         try:
                             await ws.send(json.dumps({"type": "heartbeat", "agent": agent_name}))
                         except Exception:
@@ -286,6 +298,10 @@ async def listen_websocket(
                         except json.JSONDecodeError:
                             continue
 
+                        if msg.get("type") == "ping":
+                            await ws.send("pong")
+                            continue
+
                         msg_id = msg.get("id")
                         if msg_id is None or msg_id <= last_seen_id:
                             continue
@@ -302,10 +318,27 @@ async def listen_websocket(
 
                         pending_messages.append(msg)
 
-                        if is_mentioning(content, aliases):
-                            # 文件锁协调
-                            if not try_acquire_lock(agent_name, room_id):
-                                print(f"[{agent_name}] Lock held by another listener, continuing...", flush=True)
+                        # 触发规则：
+                        # 1. to_name 定向匹配（精确匹配 name 或 display_name）
+                        # 2. to_name == "all" 或内容含 @all（广播）
+                        # 3. 消息内容中的普通 @mention 不再触发（避免误触发）
+                        to_name = (msg.get("to_name") or "").lower()
+                        is_mentioned = (
+                            to_name in (a.lower() for a in aliases if a != "all")
+                            or to_name == "all"
+                            or (not to_name and "@all" in content.lower())
+                        )
+                        if is_mentioned:
+                            # 文件锁协调：短暂重试，避免因 WS 断线导致两个监听器都漏消息
+                            lock_acquired = False
+                            for _retry in range(3):
+                                if try_acquire_lock(agent_name, room_id):
+                                    lock_acquired = True
+                                    break
+                                print(f"[{agent_name}] Lock held, retry {_retry+1}/3...", flush=True)
+                                time.sleep(0.5)
+                            if not lock_acquired:
+                                print(f"[{agent_name}] Lock still held after retries, skipping (other listener should process)", flush=True)
                                 continue
 
                             # 拉取上下文

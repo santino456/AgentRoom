@@ -28,8 +28,8 @@ class MemberCreate(BaseModel):
 class MemberOut(BaseModel):
     id: int
     name: str
+    display_name: Optional[str] = None
     type: str
-    token: Optional[str] = None
     role: str = "member"
     description: str = ""
     joined_at: datetime
@@ -90,6 +90,7 @@ class WebhookOut(BaseModel):
 class MemberStatsOut(BaseModel):
     member_id: int
     name: str
+    display_name: Optional[str] = None
     type: str
     role: str
     description: str
@@ -99,6 +100,10 @@ class MemberStatsOut(BaseModel):
 
 class MemberDescriptionUpdate(BaseModel):
     description: str = Field(..., max_length=500)
+
+
+class MemberDisplayNameUpdate(BaseModel):
+    display_name: str = Field(..., max_length=100)
 
 
 class RoomAnnouncementUpdate(BaseModel):

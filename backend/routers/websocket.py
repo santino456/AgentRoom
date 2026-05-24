@@ -32,6 +32,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int):
                 now = asyncio.get_event_loop().time()
                 if now - last_pong > PING_INTERVAL + PING_TIMEOUT:
                     logger.warning("websocket_ping_timeout", room_id=room_id)
+                    await websocket.close(code=1000, reason="ping timeout")
                     break
                 await websocket.send_text('{"type":"ping"}')
                 continue
@@ -60,6 +61,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int):
                         member.last_active = datetime.utcnow()
                         db.commit()
                     manager.register_agent(room_id, agent_name, websocket)
+                    last_pong = asyncio.get_event_loop().time()
             except Exception:
                 pass
             finally:
