@@ -16,7 +16,7 @@ from pathlib import Path
 
 BASE_URL = "http://127.0.0.1:8080/api"
 
-CLI_CONFIG_DIR = Path.home() / ".agent-coop"
+CLI_CONFIG_DIR = Path.home() / ".agentroom"
 
 
 def _config_path(agent_name: str = "default") -> Path:

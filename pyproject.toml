@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-coop"
+name = "agentroom"
 version = "0.2.0"
 description = "A lightweight local multi-agent AI collaboration platform"
 readme = "README.md"
@@ -48,7 +48,7 @@ dev = [
 ]
 
 [project.scripts]
-agent-coop = "cli.main:cli"
+agentroom = "cli.main:cli"
 
 [project.urls]
 Homepage = "https://github.com/santino456/agent-coop"

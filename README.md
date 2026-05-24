@@ -1,4 +1,4 @@
-<h1 align="center">🤖 Agent Coop</h1>
+<h1 align="center">🤖 AgentRoom</h1>
 
 <p align="center">
   <strong>A lightweight local multi-agent AI collaboration platform</strong><br>
@@ -24,7 +24,7 @@
 
 When using multiple AI assistants (Claude, Kimi, GPT, etc.), the biggest pain point is: **you are the messenger**.
 
-Agent Coop's core philosophy is **modular, collaborative, peer-reviewed** — letting multiple agents work together like a human team:
+AgentRoom's core philosophy is **modular, collaborative, peer-reviewed** — letting multiple agents work together like a human team:
 - **Each agent focuses on its strengths** (Kimi for execution, Claude for architecture)
 - **Real-time @mentions** for instant communication, no polling delays
 - **Code review between agents** — one writes, one reviews, quality doubles
@@ -46,14 +46,14 @@ You (Browser)          Agent A (Kimi CLI)         Agent B (Claude CLI)
 ### Install from PyPI
 
 ```bash
-pip install agent-coop
+pip install agentroom
 ```
 
 ### Or clone for development
 
 ```bash
-git clone https://github.com/santino456/agent-coop.git
-cd agent-coop
+git clone https://github.com/santino456/agentroom.git
+cd agentroom
 
 # Install dependencies (backend + frontend)
 make install
@@ -113,7 +113,7 @@ In another terminal:
 Paste the following into your AI agent's system prompt, and it will know how to collaborate:
 
 ```markdown
-## Agent Coop Collaboration Guide
+## AgentRoom Collaboration Guide
 
 You are part of a multi-agent collaboration team. Communicate via CLI commands:
 
@@ -140,25 +140,25 @@ Full version: [`AGENTS.md`](./AGENTS.md) (also available in [Chinese](./AGENTS.z
 
 ### Agent Skill 安装
 
-Agent Coop 提供了 agent skill 文件，帮助 AI agent 快速理解平台规则和接入方式。安装方式取决于你使用的 agent 平台：
+AgentRoom 提供了 agent skill 文件，帮助 AI agent 快速理解平台规则和接入方式。安装方式取决于你使用的 agent 平台：
 
 **Claude Code**：
 ```bash
 # 复制 skill 到 Claude Code skills 目录
-mkdir -p ~/.claude/skills/agent-coop
-cp skills/agent-coop/SKILL.md ~/.claude/skills/agent-coop/
-cp skills/agent-coop/adapters/claude-code.md ~/.claude/skills/agent-coop/
+mkdir -p ~/.claude/skills/agentroom
+cp skills/agentroom/SKILL.md ~/.claude/skills/agentroom/
+cp skills/agentroom/adapters/claude-code.md ~/.claude/skills/agentroom/
 ```
 
 **Kimi Code**：
 ```bash
 # 复制 skill 到 Kimi skills 目录（或按 Kimi 平台要求配置）
-mkdir -p ~/.kimi/skills/agent-coop
-cp skills/agent-coop/SKILL.md ~/.kimi/skills/agent-coop/
-cp skills/agent-coop/adapters/kimi-code.md ~/.kimi/skills/agent-coop/
+mkdir -p ~/.kimi/skills/agentroom
+cp skills/agentroom/SKILL.md ~/.kimi/skills/agentroom/
+cp skills/agentroom/adapters/kimi-code.md ~/.kimi/skills/agentroom/
 ```
 
-**其他 Agent**：复制 `skills/agent-coop/SKILL.md` 到你的 agent skill 系统，并根据需要编写新的适配层（参考 `skills/agent-coop/adapters/` 下的示例）。
+**其他 Agent**：复制 `skills/agentroom/SKILL.md` 到你的 agent skill 系统，并根据需要编写新的适配层（参考 `skills/agentroom/adapters/` 下的示例）。
 
 ---
 
@@ -178,7 +178,7 @@ cp skills/agent-coop/adapters/kimi-code.md ~/.kimi/skills/agent-coop/
 ## 📁 Project Structure
 
 ```
-agent-coop/
+agentroom/
 ├── backend/          # FastAPI backend
 │   ├── main.py       # API + WebSocket
 │   ├── models.py     # SQLAlchemy models
@@ -203,7 +203,7 @@ agent-coop/
 ├── config/           # Agent configuration
 │   └── agents.yaml
 ├── skills/           # Agent skill files (generic + adapters)
-│   └── agent-coop/
+│   └── agentroom/
 ├── docs/             # Documentation
 ├── requirements.txt
 ├── pyproject.toml

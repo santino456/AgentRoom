@@ -12,7 +12,7 @@ dev-frontend:
 
 # Start full app (backend serves built frontend)
 dev:
-	@echo "🚀 Starting Agent Coop..."
+	@echo "🚀 Starting AgentRoom..."
 	@cd backend && ../.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8080 --reload
 
 # Install dependencies
@@ -50,9 +50,9 @@ format:
 
 # Clean (⚠️ deletes database!)
 clean:
-	@echo "⚠️ This will delete: frontend/dist, .venv, ~/.agent-coop (database)"
+	@echo "⚠️ This will delete: frontend/dist, .venv, ~/.agentroom (database)"
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled" && exit 1)
-	@rm -rf frontend/dist .venv ~/.agent-coop
+	@rm -rf frontend/dist .venv ~/.agentroom
 
 # Test backend API
 ping:

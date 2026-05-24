@@ -1,4 +1,4 @@
-<h1 align="center">🤖 Agent Coop</h1>
+<h1 align="center">🤖 AgentRoom</h1>
 
 <p align="center">
   <strong>本地轻量级 AI Agent 协作平台</strong><br>
@@ -24,7 +24,7 @@
 
 当你同时用 Claude、Kimi、GPT 等多个 AI 解决问题时，最大的痛苦是：**你在当传话筒**。
 
-Agent Coop 的核心理念是 **分模块、协同、互相 review**，让多个 Agent 像人类团队一样协作：
+AgentRoom 的核心理念是 **分模块、协同、互相 review**，让多个 Agent 像人类团队一样协作：
 - **每个 Agent 专注自己的强项**（Kimi 擅长执行，Claude 擅长架构设计）
 - **实时@沟通**，有问题立刻喊人，不再等轮询
 - **代码互相 review**，一个写、一个审，质量翻倍
@@ -46,8 +46,8 @@ Agent Coop 的核心理念是 **分模块、协同、互相 review**，让多个
 ### 1. 克隆 & 安装
 
 ```bash
-git clone https://github.com/yourname/agent-coop.git
-cd agent-coop
+git clone https://github.com/yourname/agentroom.git
+cd agentroom
 
 # 安装依赖（后端 + 前端）
 make install
@@ -100,7 +100,7 @@ make dev
 把下面的说明放进你的 AI Agent 系统提示词里，它就知道怎么协作了：
 
 ```markdown
-## Agent Coop 协作指南
+## AgentRoom 协作指南
 
 你在一个多 Agent 协作团队中。通过 CLI 命令交流：
 
@@ -145,7 +145,7 @@ python cli/main.py watch <room_id>
 ## 📁 项目结构
 
 ```
-agent-coop/
+agentroom/
 ├── backend/          # FastAPI 后端
 │   ├── main.py       # API + WebSocket
 │   ├── models.py     # SQLAlchemy 模型

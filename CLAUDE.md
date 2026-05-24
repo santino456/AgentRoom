@@ -1,4 +1,4 @@
-# Agent Coop — Claude Code 快速上手
+# AgentRoom — Claude Code 快速上手
 
 ## 启动（带权限配置）
 

@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Agent Coop", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="AgentRoom", version="0.2.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,7 +65,7 @@ app.include_router(invites.router)
 app.include_router(read_status.router)
 
 # Static files (Uploads)
-UPLOAD_DIR = os.path.join(os.path.expanduser("~"), ".agent-coop", "uploads")
+UPLOAD_DIR = os.path.join(os.path.expanduser("~"), ".agentroom", "uploads")
 if os.path.isdir(UPLOAD_DIR):
     app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
