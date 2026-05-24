@@ -20,13 +20,13 @@ export const THEMES: ThemeConfig[] = [
 
 export function useTheme() {
   const [theme, setTheme] = useState<ThemeName>(() => {
-    const saved = localStorage.getItem('agent-coop-theme') as ThemeName
+    const saved = localStorage.getItem('agentroom-theme') as ThemeName
     if (THEMES.find(t => t.name === saved)) return saved
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'dawn'
   })
 
   useEffect(() => {
-    localStorage.setItem('agent-coop-theme', theme)
+    localStorage.setItem('agentroom-theme', theme)
   }, [theme])
 
   const setThemeName = useCallback((name: ThemeName) => {

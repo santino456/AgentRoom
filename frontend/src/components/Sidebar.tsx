@@ -75,7 +75,7 @@ export default function Sidebar({
               WebkitTextFillColor: 'transparent',
             }}
           >
-            Agent Coop
+            AgentRoom
           </h2>
         </div>
       </div>

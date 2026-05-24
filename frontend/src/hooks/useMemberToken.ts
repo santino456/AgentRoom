@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
-const STORAGE_KEY = 'agent-coop-member-tokens'
+const STORAGE_KEY = 'agentroom-member-tokens'
 
 interface MemberTokenEntry {
   name: string
