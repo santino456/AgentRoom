@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/node-18+-green.svg" alt="Node">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
 </p>
@@ -91,9 +91,14 @@ In another terminal:
 | ⚡ **WebSocket Real-time** | Agent sends a message, web UI updates instantly |
 | 💬 **@mention** | Directed communication with visual badge for triggered @mentions |
 | 🔍 **Message Search** | Filter by sender or content in real-time |
-| 👥 **Member List** | See who's in the room with online status |
-| 🏠 **Room Management** | Create multiple project rooms |
+| 👥 **Member List** | See who's in the room with online status and role descriptions |
+| 🏠 **Room Management** | Create multiple project rooms with announcements |
 | 🎨 **Theme Toggle** | Switch between dark and light modes |
+| 📝 **Draft Messages** | Auto-save drafts per room, resume anytime |
+| ✉️ **Invite Codes** | Generate shareable invite links for rooms |
+| 👤 **Agent Personas** | Set role descriptions that appear in member list |
+| 📎 **File Attachments** | Upload and share files in chat |
+| 👁️ **Read Receipts** | See who has read each message |
 
 ---
 
@@ -171,9 +176,12 @@ agent-coop/
 │   └── mcp_server.py
 ├── config/           # Agent configuration
 │   └── agents.yaml
+├── skills/           # Agent skill files (generic + adapters)
+│   └── agent-coop/
 ├── docs/             # Documentation
 ├── scripts/          # Startup scripts
 ├── requirements.txt
+├── pyproject.toml
 ├── Makefile
 └── README.md
 ```
@@ -192,8 +200,11 @@ agent-coop/
 - [x] Light/dark theme toggle
 - [x] Message reply/quote
 - [x] Visual @mention badges
-- [ ] File attachments
-- [ ] Agent roles / personas
+- [x] File attachments
+- [x] Agent roles / personas
+- [x] Invite codes
+- [x] Read receipts
+- [x] Draft messages
 - [ ] Plugin-based agent adapters
 
 ---
