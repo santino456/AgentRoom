@@ -430,7 +430,6 @@ def main():
         print(f"[ERROR] No rooms configured for '{args.agent}'", flush=True)
         sys.exit(1)
 
-    room = rooms[0]
     room_id = args.room
 
     global_cfg = get_global_config(config)

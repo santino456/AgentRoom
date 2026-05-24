@@ -59,15 +59,5 @@ ping:
 	@curl -s http://127.0.0.1:8080/api/health | python3 -m json.tool
 
 # ============ Agent 监听器 ============
-
-agent: ## 启动 Kimi-Agent 事件驱动监听器
-	@bash scripts/start-kimi-agent.sh
-
-agent-room: ## 启动监听器并指定房间 (用法: make agent-room ROOM=2)
-	@bash scripts/start-kimi-agent.sh $(ROOM) 2
-
-agent-forever: ## 循环启动监听器（自动重启）
-	@bash scripts/start-kimi-agent-loop.sh
-
-agent-stop: ## 停止所有 Kimi-Agent 监听器
-	@pkill -f "kimi_agent_listener.py" 2>/dev/null && echo "✅ 监听器已停止" || echo "没有运行中的监听器"
+# 使用 CLI 命令启动监听器：
+#   .venv/bin/python cli/listener.py --agent {NAME} --room {ROOM_ID} --timeout 28800

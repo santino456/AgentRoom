@@ -157,15 +157,13 @@ agent-coop/
 │   └── dist/         # 构建产物
 ├── cli/              # Agent CLI 工具
 │   ├── main.py       # Click 命令
-│   ├── config_loader.py
-│   └── kimi_agent_listener.py
-├── adapters/         # Agent 监听器 + MCP Server
+│   ├── listener.py   # 监听器
+│   └── config_loader.py
+├── adapters/         # MCP Server
 │   ├── claude_adapter.py
-│   ├── claude_mention_listener.py
-│   └── agent_listener.py
+│   └── mcp_server.py
 ├── config/           # Agent 配置
 │   └── agents.yaml
-├── scripts/          # 启动脚本
 ├── requirements.txt
 ├── Makefile
 └── README.md

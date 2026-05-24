@@ -7,6 +7,7 @@ import click
 import httpx
 import json
 import os
+import psutil
 import subprocess
 import sys
 import time
@@ -476,7 +477,6 @@ def listener():
 @click.option("--count", type=int, default=1, help="启动实例数量")
 def listener_start(agent, room, timeout, count):
     """启动监听器实例（跨平台）"""
-    import psutil
     script_dir = os.path.dirname(os.path.abspath(__file__))
     listener_script = os.path.join(script_dir, "listener.py")
     for i in range(count):
@@ -499,7 +499,6 @@ def listener_start(agent, room, timeout, count):
 @click.option("--agent", help="只停止指定 agent 的监听器")
 def listener_stop(agent):
     """停止监听器（跨平台）"""
-    import psutil
     import signal
     killed = 0
     for proc in psutil.process_iter(["pid", "cmdline"]):
@@ -520,7 +519,6 @@ def listener_stop(agent):
 @listener.command("status")
 def listener_status():
     """查看监听器状态（跨平台）"""
-    import psutil
     import re
     listeners = []
     for proc in psutil.process_iter(["pid", "cmdline"]):

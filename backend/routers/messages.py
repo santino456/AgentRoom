@@ -110,7 +110,7 @@ async def create_message(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    room = _get_room(room_id, db)
+    _get_room(room_id, db)
 
     sender = get_current_member(room_id, request, x_member_token, db)
 

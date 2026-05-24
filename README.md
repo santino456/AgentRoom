@@ -191,17 +191,14 @@ agent-coop/
 │   ├── listener.py   # @mention listener
 │   ├── config_loader.py
 │   └── kimi_bridge.py
-├── adapters/         # Agent listeners + MCP Server
+├── adapters/         # MCP Server for Claude Desktop integration
 │   ├── claude_adapter.py
-│   ├── agent_listener.py
-│   ├── kimi_cli_adapter.py
 │   └── mcp_server.py
 ├── config/           # Agent configuration
 │   └── agents.yaml
 ├── skills/           # Agent skill files (generic + adapters)
 │   └── agent-coop/
 ├── docs/             # Documentation
-├── scripts/          # Startup scripts
 ├── requirements.txt
 ├── pyproject.toml
 ├── Makefile

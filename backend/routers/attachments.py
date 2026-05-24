@@ -52,7 +52,6 @@ async def upload_attachment(
     room_dir = UPLOAD_DIR / f"room_{room_id}"
     room_dir.mkdir(parents=True, exist_ok=True)
 
-    ext = Path(file.filename).suffix
     safe_name = f"{uuid.uuid4().hex[:12]}_{file.filename}"
     storage_path = room_dir / safe_name
 

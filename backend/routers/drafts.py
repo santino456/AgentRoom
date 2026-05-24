@@ -38,10 +38,6 @@ def get_draft(
     return draft
 
 
-class DraftUpdate(BaseModel):
-    content: str
-
-
 @router.put("", response_model=DraftOut)
 def save_draft(
     room_id: int,
