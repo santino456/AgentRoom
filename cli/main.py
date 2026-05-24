@@ -475,16 +475,22 @@ def listener():
 @click.option("--timeout", type=int, default=3600, help="超时时间(秒)")
 @click.option("--count", type=int, default=1, help="启动实例数量")
 def listener_start(agent, room, timeout, count):
-    """启动监听器实例"""
+    """启动监听器实例（跨平台）"""
+    import psutil
     script_dir = os.path.dirname(os.path.abspath(__file__))
     listener_script = os.path.join(script_dir, "listener.py")
     for i in range(count):
-        # 用 nohup 启动，避免父进程退出时子进程被收掉
+        kwargs = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+        if sys.platform == "win32":
+            kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            kwargs["start_new_session"] = True
         proc = subprocess.Popen(
-            ["nohup", sys.executable, listener_script, "--agent", agent, "--room", str(room), "--timeout", str(timeout)],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            start_new_session=True,
+            [sys.executable, listener_script, "--agent", agent, "--room", str(room), "--timeout", str(timeout)],
+            **kwargs,
         )
         click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动 (PID {proc.pid})")
 
@@ -492,36 +498,42 @@ def listener_start(agent, room, timeout, count):
 @listener.command("stop")
 @click.option("--agent", help="只停止指定 agent 的监听器")
 def listener_stop(agent):
-    """停止监听器"""
+    """停止监听器（跨平台）"""
+    import psutil
     import signal
-    cmd = "cli/listener.py"
     killed = 0
-    for line in os.popen("ps aux"):
-        if cmd in line and (not agent or f"--agent {agent}" in line):
-            pid = int(line.split()[1])
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        cmdline = proc.info.get("cmdline") or []
+        cmd = " ".join(cmdline)
+        if "cli/listener.py" in cmd and (not agent or f"--agent {agent}" in cmd):
             try:
-                os.kill(pid, signal.SIGTERM)
+                if sys.platform == "win32":
+                    proc.terminate()
+                else:
+                    os.kill(proc.info["pid"], signal.SIGTERM)
                 killed += 1
-            except ProcessLookupError:
+            except (ProcessLookupError, psutil.NoSuchProcess):
                 pass
     click.echo(f"🛑 已停止 {killed} 个监听器")
 
 
 @listener.command("status")
 def listener_status():
-    """查看监听器状态"""
+    """查看监听器状态（跨平台）"""
+    import psutil
     import re
     listeners = []
-    for line in os.popen("ps aux"):
-        if "cli/listener.py" in line:
-            parts = line.split()
-            pid = parts[1]
-            cmd = " ".join(parts[10:])
-            m = re.search(r"--agent\s+(\S+)", cmd)
-            agent = m.group(1) if m else "unknown"
-            m = re.search(r"--room\s+(\d+)", cmd)
-            room = m.group(1) if m else "?"
-            listeners.append((agent, room, pid))
+    for proc in psutil.process_iter(["pid", "cmdline"]):
+        cmdline = proc.info.get("cmdline") or []
+        cmd = " ".join(cmdline)
+        if "cli/listener.py" in cmd:
+            m_agent = re.search(r"--agent\s+(\S+)", cmd)
+            m_room = re.search(r"--room\s+(\d+)", cmd)
+            listeners.append((
+                m_agent.group(1) if m_agent else "unknown",
+                m_room.group(1) if m_room else "?",
+                str(proc.info["pid"]),
+            ))
 
     if not listeners:
         click.echo("没有运行中的监听器")

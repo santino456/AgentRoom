@@ -15,6 +15,7 @@ Agent Coop — 统一监听器入口
 import asyncio
 import json
 import sys
+import tempfile
 import time
 import urllib.request
 from pathlib import Path
@@ -29,7 +30,7 @@ BASE_HTTP = "http://127.0.0.1:8080"
 BASE_WS = "ws://127.0.0.1:8080"
 
 # 持久化日志，避免后台任务输出被清理
-LOG_FILE = Path("/tmp/agent-listener.log")
+LOG_FILE = Path(tempfile.gettempdir()) / "agent-listener.log"
 
 
 def log(msg: str):

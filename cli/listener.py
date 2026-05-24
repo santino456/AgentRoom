@@ -13,6 +13,7 @@ import json
 import os
 import random
 import sys
+import tempfile
 import time
 import urllib.request
 from datetime import datetime
@@ -38,7 +39,7 @@ def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bo
     使用 fcntl.flock (POSIX) 避免过期锁清理的竞态窗口。"""
     import fcntl
 
-    lock_path = f"/tmp/agent-coop-lock-{agent_name}-{room_id}.json"
+    lock_path = os.path.join(tempfile.gettempdir(), f"agent-coop-lock-{agent_name}-{room_id}.json")
     now = time.time()
     my_pid = os.getpid()
 

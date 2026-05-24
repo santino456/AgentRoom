@@ -10,6 +10,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -23,7 +24,7 @@ AGENT_NAME = "claude-agent"
 
 def try_acquire_lock(room_id: int = 1, ttl_seconds: int = 30) -> bool:
     """尝试获取文件锁，确保同一时刻只有一个监听器响应 @ 消息。"""
-    lock_path = f"/tmp/agent-coop-listener-lock-{AGENT_NAME}-{room_id}.json"
+    lock_path = os.path.join(tempfile.gettempdir(), f"agent-coop-listener-lock-{AGENT_NAME}-{room_id}.json")
     now = time.time()
     my_pid = os.getpid()
 
