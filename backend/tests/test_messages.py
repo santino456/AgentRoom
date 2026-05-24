@@ -1,15 +1,26 @@
-def _create_room(client, name="msg-room"):
+def _create_room_and_join(client, name="msg-room", member_name="alice"):
+    """Create a room, join it, and return room_id, secret, member_token."""
     r = client.post("/api/rooms", json={"name": name})
-    return r.json()["id"], r.json()["secret"]
+    room_id = r.json()["id"]
+    secret = r.json()["secret"]
+
+    # Join room to get member token
+    join_resp = client.post(
+        f"/api/rooms/{room_id}/join",
+        json={"name": member_name, "type": "agent"},
+        headers={"X-Room-Secret": secret},
+    )
+    token = join_resp.json()["token"]
+    return room_id, secret, token
 
 
 def test_send_message(client):
-    room_id, secret = _create_room(client)
+    room_id, secret, token = _create_room_and_join(client)
 
     resp = client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "hello world"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "hello world"},
+        headers={"X-Member-Token": token},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -18,80 +29,98 @@ def test_send_message(client):
     assert data["msg_type"] == "message"
 
 
-def test_send_message_no_secret(client):
-    room_id, _ = _create_room(client)
-    resp = client.post(
-        f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "hello"},
-    )
-    assert resp.status_code == 403
+def test_send_message_no_token(client):
+    """Sending a message without auth should fail."""
+    # Create room and join (sets cookies)
+    room_id, secret, token = _create_room_and_join(client)
+
+    # Create a new session without cookies to test unauthenticated access
+    from fastapi.testclient import TestClient
+    from main import app
+    with TestClient(app) as fresh_client:
+        resp = fresh_client.post(
+            f"/api/rooms/{room_id}/messages",
+            json={"content": "hello"},
+        )
+        assert resp.status_code == 401
 
 
 def test_list_messages(client):
-    room_id, secret = _create_room(client)
+    room_id, secret, token = _create_room_and_join(client)
 
     client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "msg1"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "msg1"},
+        headers={"X-Member-Token": token},
     )
     client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "bob", "content": "msg2"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "msg2"},
+        headers={"X-Member-Token": token},
     )
 
-    resp = client.get(f"/api/rooms/{room_id}/messages")
+    resp = client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"X-Member-Token": token},
+    )
     assert resp.status_code == 200
-    msgs = resp.json()
-    assert len(msgs) == 2
-    assert msgs[0]["content"] == "msg1"
-    assert msgs[1]["content"] == "msg2"
+    data = resp.json()
+    msgs = data["messages"] if isinstance(data, dict) else data
+    # Filter out system messages (join/leave)
+    user_msgs = [m for m in msgs if m["msg_type"] == "message"]
+    assert len(user_msgs) == 2
+    assert user_msgs[0]["content"] == "msg1"
+    assert user_msgs[1]["content"] == "msg2"
 
 
 def test_edit_message(client):
-    room_id, secret = _create_room(client)
+    room_id, secret, token = _create_room_and_join(client)
 
     msg = client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "original"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "original"},
+        headers={"X-Member-Token": token},
     ).json()
 
     resp = client.put(
         f"/api/rooms/{room_id}/messages/{msg['id']}",
         json={"content": "edited"},
-        headers={"X-Room-Secret": secret},
+        headers={"X-Member-Token": token},
     )
     assert resp.status_code == 200
     assert resp.json()["content"] == "edited"
 
 
 def test_delete_message(client):
-    room_id, secret = _create_room(client)
+    room_id, secret, token = _create_room_and_join(client)
 
     msg = client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "to delete"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "to delete"},
+        headers={"X-Member-Token": token},
     ).json()
 
     resp = client.delete(
         f"/api/rooms/{room_id}/messages/{msg['id']}",
-        headers={"X-Room-Secret": secret},
+        headers={"X-Member-Token": token},
     )
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
 
-    # Verify deletion
-    msgs = client.get(f"/api/rooms/{room_id}/messages").json()
-    assert len(msgs) == 0
+    # Verify deletion — only join system message should remain
+    msgs_resp = client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"X-Member-Token": token},
+    ).json()
+    msgs = msgs_resp["messages"] if isinstance(msgs_resp, dict) else msgs_resp
+    user_msgs = [m for m in msgs if m["msg_type"] == "message"]
+    assert len(user_msgs) == 0
 
 
 def test_send_mention_message(client):
-    room_id, secret = _create_room(client)
+    room_id, secret, token = _create_room_and_join(client, member_name="alice")
 
-    # Create member bob so to_member_id resolves
+    # Create member bob so to_name resolves
     client.post(
         f"/api/rooms/{room_id}/join",
         json={"name": "bob", "type": "agent"},
@@ -100,8 +129,8 @@ def test_send_mention_message(client):
 
     resp = client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "alice", "content": "@bob hello", "to_name": "bob"},
-        headers={"X-Room-Secret": secret},
+        json={"content": "@bob hello", "to_name": "bob"},
+        headers={"X-Member-Token": token},
     )
     assert resp.status_code == 200
     assert resp.json()["to_name"] == "bob"

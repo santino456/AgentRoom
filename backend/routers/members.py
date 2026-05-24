@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import Room, Member
-from schemas import MemberOut, MemberStatsOut, MemberDescriptionUpdate
+from schemas import MemberOut, MemberStatsOut, MemberDescriptionUpdate, MemberDisplayNameUpdate
 from dependencies import get_current_member
 
 router = APIRouter(prefix="/api/rooms/{room_id}/members", tags=["members"])
@@ -39,15 +39,21 @@ def delete_member(
 ):
     _get_room(room_id, db)
     requester = get_current_member(room_id, request, x_member_token, db)
-    if requester.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Only owner or admin can remove members")
-
     target = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    if target.role == "owner" and requester.role != "owner":
-        raise HTTPException(status_code=403, detail="Only owners can remove another owner")
+    # Allow self-removal (quit room) or owner/admin removal
+    if requester.id != target.id and requester.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Only owner or admin can remove members")
+
+    # Cannot remove the last owner
+    if target.role == "owner":
+        owner_count = db.query(Member).filter(
+            Member.room_id == room_id, Member.role == "owner"
+        ).count()
+        if owner_count <= 1:
+            raise HTTPException(status_code=403, detail="Cannot remove the last owner")
 
     db.delete(target)
     db.commit()
@@ -85,6 +91,7 @@ def list_member_stats(
         stats.append(MemberStatsOut(
             member_id=m.id,
             name=m.name,
+            display_name=m.display_name,
             type=m.type,
             role=m.role,
             description=m.description or "",
@@ -136,6 +143,52 @@ def update_member_description(
         raise HTTPException(status_code=403, detail="Can only update your own description")
 
     member.description = data.description
+    db.commit()
+    db.refresh(member)
+    return member
+
+
+@router.get("/{member_id}/display-name", response_model=str)
+def get_member_display_name(
+    room_id: int,
+    member_id: int,
+    request: Request,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Get a member's display name."""
+    _get_room(room_id, db)
+    from dependencies import get_current_member
+    get_current_member(room_id, request, x_member_token, db)
+
+    member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    return member.display_name or ""
+
+
+@router.put("/{member_id}/display-name", response_model=MemberOut)
+def update_member_display_name(
+    room_id: int,
+    member_id: int,
+    data: MemberDisplayNameUpdate,
+    request: Request,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Update a member's display name. Members can update their own; owners/admins can update anyone's."""
+    _get_room(room_id, db)
+    from dependencies import get_current_member
+    requester = get_current_member(room_id, request, x_member_token, db)
+
+    member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    if requester.id != member.id and requester.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Can only update your own display name")
+
+    member.display_name = data.display_name
     db.commit()
     db.refresh(member)
     return member

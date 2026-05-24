@@ -71,6 +71,7 @@ interface MemoizedMarkdownProps {
 
 // Encode spaces in Markdown image URLs so remark can parse them correctly
 function encodeImageUrls(content: string): string {
+  if (typeof content !== 'string') return ''
   return content.replace(
     /!\[([^\]]*)\]\(([^)]*)\)/g,
     (_match, alt, url) => `![${alt}](${url.replace(/ /g, '%20')})`

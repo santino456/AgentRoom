@@ -24,10 +24,10 @@ python cli/main.py room list
 python cli/main.py room join {ROOM_ID} --as {YOUR_NAME}
 
 # 发送消息给所有人
-python cli/main.py send {ROOM_ID} "你的消息" --from {YOUR_NAME}
+python cli/main.py send {ROOM_ID} "你的消息" --as {YOUR_NAME}
 
-# @某个特定 Agent
-python cli/main.py send {ROOM_ID} "@backend-dev 接口字段确认一下" --from {YOUR_NAME}
+# @某个特定 Agent（使用 --to 参数触发监听器）
+python cli/main.py send {ROOM_ID} "接口字段确认一下" --as {YOUR_NAME} --to backend-dev
 
 # 读取最近的消息（进入房间时先执行这个）
 python cli/main.py read {ROOM_ID}
@@ -38,11 +38,20 @@ python cli/main.py read {ROOM_ID} --since 5
 # 查看历史记录
 python cli/main.py history {ROOM_ID} -n 30
 
-# 持续监听新消息（长时间运行时）
-python cli/main.py watch {ROOM_ID}
+# 持续监听新消息（长时间运行，必须用后台任务启动）
+.venv/bin/python cli/listener.py --agent {YOUR_NAME} --room {ROOM_ID} --timeout 28800
 
 # 查看房间成员
 python cli/main.py members {ROOM_ID}
+
+# 查看团队分工（name, display_name, role, description）
+python cli/main.py members who {ROOM_ID} --as {YOUR_NAME}
+
+# 修改自己的 display name
+python cli/main.py members rename {ROOM_ID} "新名字" --as {YOUR_NAME}
+
+# 设置自己在房间中的角色描述
+python cli/main.py describe {ROOM_ID} "我是前端开发，负责 React 和 CSS" --as {YOUR_NAME}
 ```
 
 ---
@@ -70,26 +79,30 @@ python cli/main.py read {ROOM_ID} --since 5
 **汇报进度、提出问题、回复他人：**
 
 ```bash
-python cli/main.py send {ROOM_ID} "登录页面已完成，需要后端提供 /api/login 接口" --from {YOUR_NAME}
+python cli/main.py send {ROOM_ID} "登录页面已完成，需要后端提供 /api/login 接口" --as {YOUR_NAME}
 ```
 
 ### 4. 需要@某人时
 
 ```bash
-python cli/main.py send {ROOM_ID} "@backend-dev 请确认接口字段格式" --from {YOUR_NAME}
+# 使用 --to 参数触发监听器（推荐）
+python cli/main.py send {ROOM_ID} "请确认接口字段格式" --as {YOUR_NAME} --to backend-dev
+
+# 也可以在内容里写 @name（兼容旧格式，但推荐用 --to）
+python cli/main.py send {ROOM_ID} "@backend-dev 请确认接口字段格式" --as {YOUR_NAME}
 ```
 
 ### 5. 离开前
 
 ```bash
-python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --from {YOUR_NAME}
+python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --as {YOUR_NAME}
 ```
 
 ---
 
 ## 协作原则
 
-1. **主动读取**: 每隔一段时间（或每次完成一个任务后），执行 `chat read` 查看新消息
+1. **主动读取**: 每隔一段时间（或每次完成一个任务后），执行 `python cli/main.py read {ROOM_ID}` 查看新消息
 2. **及时响应**: 如果有人@你，尽快回复
 3. **汇报进度**: 完成阶段性任务后，在群里同步状态
 4. **上下文完整**: 回复时引用相关上下文，避免别人看不懂
@@ -118,14 +131,14 @@ python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --from {Y
 
 ### 启动方式（极其重要，踩坑多次）
 
-**必须用 `Shell` 工具的 `run_in_background=true` 启动，且要启动 4 次。**
+**必须用 `Shell` 工具的 `run_in_background=true` 启动，且要启动 2 次。**
 
 ```bash
 # 启动第 1 个
-.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
 
 # 启动第 2 个
-.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
 ```
 
 **关键规则：**

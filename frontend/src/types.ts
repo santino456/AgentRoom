@@ -8,6 +8,7 @@ export interface Room {
 export interface Member {
   id: number
   name: string
+  display_name?: string | null
   type: string
   last_active: string
   role?: string

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import type { Message } from '../types'
+import React, { useState, useMemo } from 'react'
+import type { Message, Member } from '../types'
 import { MemoizedMarkdown } from './MarkdownRenderer'
 import Lightbox from './Lightbox'
 
@@ -7,6 +7,7 @@ interface MessageItemProps {
   msg: Message
   isMe: boolean
   myName: string
+  members: Member[]
   editingId: number | null
   onStartEdit: (msg: Message) => void
   onSaveEdit: (msgId: number, content: string) => void
@@ -41,10 +42,11 @@ function getMeGradient(name: string | null): string {
   return gradients[name] || 'var(--msg-me-gradient)'
 }
 
-export default function MessageItem({
+function MessageItem({
   msg,
   isMe,
   myName,
+  members,
   editingId,
   onStartEdit,
   onSaveEdit,
@@ -61,6 +63,11 @@ export default function MessageItem({
 
   const senderColor = useMemo(() => getSenderColor(msg.sender_name), [msg.sender_name])
   const meGradient = useMemo(() => getMeGradient(msg.sender_name), [msg.sender_name])
+
+  const displayName = useMemo(() => {
+    const member = members.find((m) => m.name === msg.sender_name)
+    return member?.display_name || msg.sender_name
+  }, [members, msg.sender_name])
 
   const isSystem = msg.msg_type === 'join' || msg.msg_type === 'leave' || msg.msg_type === 'system'
 
@@ -147,16 +154,45 @@ export default function MessageItem({
       >
         {!isMe && (
           <div className="text-[11px] font-semibold mb-1 flex items-center gap-1.5" style={{ color: senderColor }}>
-            <span 
+            <span
               className="w-1.5 h-1.5 rounded-full"
               style={{ backgroundColor: senderColor }}
             />
-            {msg.sender_name}
+            {displayName}
             {msg.to_name && (
-              <span className="font-normal" style={{ color: 'var(--text-muted)' }}>
-                → @{msg.to_name}
+              <span
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: '#10b981',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                }}
+              >
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+                </svg>
+                @{msg.to_name}
               </span>
             )}
+          </div>
+        )}
+        {isMe && msg.to_name && (
+          <div className="text-[11px] mb-1 flex items-center gap-1.5 justify-end">
+            <span
+              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                color: '#6ee7b7',
+                border: '1px solid rgba(16, 185, 129, 0.3)',
+              }}
+            >
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+              </svg>
+              @{msg.to_name}
+            </span>
           </div>
         )}
         {isEditing ? (
@@ -211,3 +247,5 @@ export default function MessageItem({
     </div>
   )
 }
+
+export default React.memo(MessageItem)

@@ -11,7 +11,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import settings
 from database import engine, Base
-from websocket import manager
 from logging_config import configure_logging, new_trace_id
 import structlog
 

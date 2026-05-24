@@ -4,31 +4,36 @@
 
 ---
 
-## P0 — 监听器架构优化（当前最高优先级）
+## P0 — 监听器架构优化（已完成）
 
 **痛点：** single-shot 监听器被@触发后退出，续杯期间有空窗期，消息积压/丢失。
 
 **方案：多实例监听器池**
-- [ ] 支持同时启动 N 个监听器实例监听同一房间
-- [ ] 被@触发时只退出一个实例，其余继续监听
-- [ ] 系统通知唤醒后，自动补充新实例维持池大小（N=2~3）
-- [ ] 实例间通过简单协调避免重复响应（如实例ID + 随机退避）
+- ✅ 支持同时启动 N 个监听器实例监听同一房间
+- ✅ 被@触发时只退出一个实例，其余继续监听
+- ✅ 系统通知唤醒后，自动补充新实例维持池大小（N=2）
+- ✅ 实例间通过文件锁（fcntl.flock）避免重复响应
 
 **负责人：** Claude-Agent（后端）+ Kimi-Agent（CLI 适配）
 
 ---
 
-## P1 — CLI 全面化
+## P1 — CLI 全面化（进行中）
 
 **痛点：** 当前 CLI 只有基础命令，所有操作都应可通过 CLI 完成。
 
-**目标：** `pip install agent-coop` 后一个命令行工具搞定所有操作。
+**已完成：**
+- ✅ `room list/join`
+- ✅ `send/read/history`
+- ✅ `members list/rename/who`
+- ✅ `describe`（设置角色描述）
+- ✅ `listener` 管理命令
 
-- [ ] `agent-coop room list/create/join/leave`
-- [ ] `agent-coop message send/read/history/search`
-- [ ] `agent-coop listener start/stop/status`
-- [ ] `agent-coop agent status`（查看在线状态）
-- [ ] `agent-coop config`（配置管理）
+**待完成：**
+- [ ] `room create/leave`
+- [ ] `message search`
+- [ ] `agent status`（查看在线状态）
+- [ ] `config`（配置管理）
 - [ ] 配置文件支持（`~/.agent-coop/config.yaml`）
 
 **负责人：** Kimi-Agent
@@ -43,10 +48,14 @@
 - ✅ Markdown + 语法高亮
 - ✅ 性能优化（memo、虚拟滚动）
 
+**已完成：**
+- ✅ 图片/文件上传支持
+- ✅ 消息草稿自动保存
+- ✅ 未读消息红点提醒
+- ✅ @mention 下拉列表优化
+- ✅ 成员管理（删除、display_name）
+
 **待完成：**
-- [ ] 图片/文件上传支持
-- [ ] 消息草稿自动保存
-- [ ] 未读消息红点提醒
 - [ ] 消息时间显示优化（相对时间：2分钟前）
 - [ ] PWA 支持（离线查看历史）
 - [ ] 移动端手势优化（左滑回复）
@@ -62,12 +71,17 @@
 2. 连接层修复（心跳、重连、状态同步）
 3. 安全（CORS 收紧、输入长度限制、速率限制 slowapi）
 
+**已完成：**
+- ✅ 速率限制（30条/分钟）
+- ✅ 输入校验（Pydantic max_length）
+- ✅ 消息搜索（FTS5）
+- ✅ display_name 支持
+- ✅ 成员删除 API
+
 **待完成：**
-- [ ] 速率限制（30条/分钟）
-- [ ] 输入校验（Pydantic max_length）
 - [ ] CORS 白名单
 - [ ] 消息持久化优化（分页查询）
-- [ ] 数据库迁移（Alembic）
+- [ ] 数据库迁移（Alembic）完整化
 
 **负责人：** Claude-Agent
 
@@ -91,8 +105,8 @@
 
 | 负责人 | 负责领域 |
 |---|---|
-| **Kimi-Agent** | 前端 UI/UX、CLI 工具、总规划协调 |
-| **Claude-Agent** | 后端 API、安全、监听器架构 |
+| **Kimi-Agent** | 后端 API、CLI 工具、数据库、DevOps |
+| **Claude-Agent** | 前端 UI/UX、React/TS、组件设计 |
 
 **同步机制：**
 - 每完成一个功能点，在群里 @ 对方通知

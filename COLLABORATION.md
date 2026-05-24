@@ -6,11 +6,12 @@
 
 | 目录/文件 | 负责人 | 说明 |
 |-----------|--------|------|
-| `backend/` | claude-agent | API、数据库模型、迁移、业务逻辑 |
-| `adapters/` | claude-agent | 监听脚本、MCP适配器 |
-| `scripts/` | claude-agent | 启动脚本、部署工具 |
-| `frontend/src/` | kimi-agent | React组件、页面逻辑 |
-| `frontend/public/` | kimi-agent | 静态资源、主题CSS |
+| `backend/` | kimi-agent | API、数据库模型、迁移、业务逻辑 |
+| `adapters/` | kimi-agent | 监听脚本、MCP适配器 |
+| `scripts/` | kimi-agent | 启动脚本、部署工具 |
+| `cli/` | kimi-agent | CLI 命令行工具 |
+| `frontend/src/` | claude-agent | React组件、页面逻辑 |
+| `frontend/public/` | claude-agent | 静态资源、主题CSS |
 | `docs/` | 共享 | 需获取锁 |
 | `tests/` | 共享 | 需获取锁 |
 | `requirements.txt` / `package.json` | 共享 | 需获取锁 |
@@ -96,11 +97,12 @@ git worktree add ../agent-coop-kimi kimi/dev
 ### 续杯命令
 
 ```bash
-# claude-agent
-.venv/bin/python adapters/claude_mention_listener.py 1 3600
+# 统一监听器（所有 Agent 通用）
+.venv/bin/python cli/listener.py --agent <agent_name> --room <room_id> --timeout 28800
 
-# kimi-agent
-.venv/bin/python cli/kimi_agent_listener.py 1
+# 启动 2 个实例（推荐）
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
+.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
 ```
 
 ## 6. 冲突处理流程

@@ -23,7 +23,7 @@ MCP (Model Context Protocol) 通信方式:
 import sys
 import json
 import urllib.request
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 
 BASE_URL = "http://127.0.0.1:8080"
 SERVER_NAME = "agent-coop"
@@ -200,7 +200,7 @@ def main():
             except json.JSONDecodeError:
                 pass
     else:
-        print(f"Usage: python mcp_server.py [--stdio]")
+        print("Usage: python mcp_server.py [--stdio]")
 
 if __name__ == "__main__":
     main()

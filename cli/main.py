@@ -158,10 +158,22 @@ def send(room_id, content, agent_name, to, secret):
 @click.argument("room_id", type=int)
 @click.option("--since", type=int, help="最近 N 分钟")
 @click.option("--to", default=None, help="过滤接收者")
-def read(room_id, since, to):
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def read(room_id, since, to, agent_name):
     """读取房间消息"""
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 200})
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 200}, headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取消息失败: {r.text}")
+        return
     msgs = r.json()
+    if not isinstance(msgs, list):
+        click.echo(f"❌ 获取消息失败: {r.text}")
+        return
     if since:
         cutoff = (datetime.utcnow() - timedelta(minutes=since)).isoformat()
         msgs = [m for m in msgs if m["created_at"] >= cutoff]
@@ -183,10 +195,22 @@ def read(room_id, since, to):
 @cli.command()
 @click.argument("room_id", type=int)
 @click.option("-n", default=50, help="最近 N 条")
-def history(room_id, n):
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def history(room_id, n, agent_name):
     """查看历史消息"""
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": n})
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": n}, headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取消息失败: {r.text}")
+        return
     msgs = r.json()
+    if not isinstance(msgs, list):
+        click.echo(f"❌ 获取消息失败: {r.text}")
+        return
     if not msgs:
         click.echo("(暂无消息)")
         return
@@ -203,15 +227,25 @@ def history(room_id, n):
 @click.argument("room_id", type=int)
 @click.option("--interval", default=3, help="检查间隔(秒)")
 @click.option("--to", default=None, help="过滤接收者")
-def watch(room_id, interval, to):
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def watch(room_id, interval, to, agent_name):
     """持续监听新消息"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    headers = {"X-Member-Token": token}
     click.echo(f"👀 监听房间 {room_id}，按 Ctrl+C 停止...")
     last_ids = set()
     try:
         while True:
             time.sleep(interval)
-            r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 100})
+            r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 100}, headers=headers)
+            if r.status_code != 200:
+                continue
             msgs = r.json()
+            if not isinstance(msgs, list):
+                continue
             for m in msgs:
                 if m["id"] not in last_ids:
                     if to and m.get("to_name") not in [to, None]:
@@ -226,18 +260,205 @@ def watch(room_id, interval, to):
 
 # ---------- Members ----------
 
-@cli.command()
+@cli.group()
+def members():
+    """成员管理"""
+    pass
+
+
+@members.command("list")
 @click.argument("room_id", type=int)
-def members(room_id):
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def members_list(room_id, agent_name):
     """查看房间成员"""
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members")
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
     ms = r.json()
     if not ms:
         click.echo("(暂无成员)")
         return
     click.echo(f"👥 房间 {room_id} 的成员:")
     for m in ms:
-        click.echo(f"   • @{m['name']} ({m['type']})")
+        dn = m.get('display_name') or m['name']
+        role = f" [{m['role']}]" if m.get('role') and m['role'] != 'member' else ''
+        click.echo(f"   • @{m['name']}{role} ({m['type']}) — {dn}")
+
+
+@members.command("rename")
+@click.argument("room_id", type=int)
+@click.argument("new_name")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def members_rename(room_id, new_name, agent_name):
+    """修改自己的 display name"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    # 先获取自己的 member_id
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
+    ms = r.json()
+    me = None
+    for m in ms:
+        if m.get('token') == token:
+            me = m
+            break
+    if not me:
+        click.echo("❌ 未找到当前成员")
+        return
+
+    r = httpx.put(
+        f"{BASE_URL}/rooms/{room_id}/members/{me['id']}/display-name",
+        json={"display_name": new_name},
+        headers=headers,
+    )
+    if r.status_code == 200:
+        click.echo(f"✅ Display name 已更新为: {new_name}")
+    else:
+        click.echo(f"❌ 更新失败: {r.text}")
+
+
+@members.command("who")
+@click.argument("room_id", type=int)
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def members_who(room_id, agent_name):
+    """查看团队分工（name, display_name, role, description）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    headers = {"X-Member-Token": token}
+
+    # 获取成员列表
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
+    ms = r.json()
+    if not ms:
+        click.echo("(暂无成员)")
+        return
+
+    # 获取成员 stats（包含 description）
+    r2 = httpx.get(f"{BASE_URL}/rooms/{room_id}/members/stats", headers=headers)
+    stats_map = {}
+    if r2.status_code == 200:
+        for s in r2.json():
+            stats_map[s['member_id']] = s
+
+    click.echo(f"👥 房间 {room_id} 团队分工")
+    click.echo("")
+
+    for i, m in enumerate(ms):
+        name = m['name']
+        dn = m.get('display_name') or name
+        role = m.get('role', 'member')
+        role_tag = f" [{role}]" if role and role != 'member' else ''
+        mtype = m.get('type', 'unknown')
+
+        # description 从 stats 或 member 对象获取
+        desc = m.get('description', '') or ''
+        if not desc and m['id'] in stats_map:
+            desc = stats_map[m['id']].get('description', '') or ''
+
+        is_last = i == len(ms) - 1
+        prefix = "└─" if is_last else "├─"
+        indent = "   " if is_last else "│  "
+
+        click.echo(f"{prefix} @{name}{role_tag} ({mtype}) — {dn}")
+        if desc:
+            for line in desc.split('\n'):
+                click.echo(f"{indent} {line}")
+        else:
+            click.echo(f"{indent} (暂无描述)")
+        if not is_last:
+            click.echo("")
+
+
+@members.command("remove")
+@click.argument("room_id", type=int)
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+def members_remove(room_id, agent_name):
+    """退出房间（删除自己）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
+
+    my_id = None
+    for m in r.json():
+        if m.get('token') == token:
+            my_id = m['id']
+            break
+
+    if not my_id:
+        click.echo("❌ 未找到当前成员")
+        return
+
+    r = httpx.delete(f"{BASE_URL}/rooms/{room_id}/members/{my_id}", headers=headers)
+    if r.status_code == 200:
+        click.echo(f"✅ 已退出房间 {room_id}")
+        # Remove token from config
+        cfg = _load_config(agent_name)
+        if 'tokens' in cfg and str(room_id) in cfg['tokens']:
+            del cfg['tokens'][str(room_id)]
+            _save_config(cfg, agent_name)
+    else:
+        click.echo(f"❌ 退出失败: {r.text}")
+
+
+# ---------- Help ----------
+
+@cli.command()
+def help():
+    """显示详细使用帮助"""
+    click.echo("""
+╔══════════════════════════════════════════════════════════════╗
+║                    Agent Coop CLI 使用指南                   ║
+╠══════════════════════════════════════════════════════════════╣
+║  房间管理                                                    ║
+║    room list                           查看所有房间          ║
+║    room join [room_id] --as [name]     加入房间              ║
+║                                                              ║
+║  消息操作                                                    ║
+║    send [room_id] [content] --as [name] 发送消息             ║
+║    read [room_id] --since [N] --as [name] 读取最近消息      ║
+║    history [room_id] -n [N] --as [name] 查看历史消息        ║
+║    watch [room_id] --as [name]         持续监听新消息       ║
+║                                                              ║
+║  成员管理                                                    ║
+║    members list [room_id] --as [name]  查看成员列表         ║
+║    members who [room_id] --as [name]   查看团队分工         ║
+║    members rename [room_id] [name] --as [name] 修改昵称    ║
+║    members remove [room_id] --as [name] 退出房间            ║
+║    describe [room_id] [desc] --as [name] 设置角色描述       ║
+║                                                              ║
+║  监听器                                                      ║
+║    listener start --agent [name] --room [id] 启动监听器     ║
+║                                                              ║
+║  使用示例                                                    ║
+║    python cli/main.py room list                              ║
+║    python cli/main.py send 1 "hello" --as Kimi-Agent         ║
+║    python cli/main.py members who 1 --as Kimi-Agent          ║
+╚══════════════════════════════════════════════════════════════╝
+""")
 
 
 # ---------- Listener ----------

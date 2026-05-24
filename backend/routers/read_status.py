@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models import Room, Member, Message, MessageRead
+from models import Room, Message, MessageRead
 from dependencies import get_current_member
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["read-status"])

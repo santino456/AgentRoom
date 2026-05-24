@@ -140,7 +140,7 @@ async def listen_websocket(room_id: int, timeout: int = None):
                             if target.lower() in content:
                                 # 文件锁协调：确保只有一个监听器响应
                                 if not try_acquire_lock(room_id):
-                                    print(f"[Lock] 锁已被其他监听器获取，继续监听...", flush=True)
+                                    print("[Lock] 锁已被其他监听器获取，继续监听...", flush=True)
                                     continue
 
                                 # 触发时实时拉取上下文
@@ -155,7 +155,7 @@ async def listen_websocket(room_id: int, timeout: int = None):
                                 all_msgs.sort(key=lambda x: x["id"])
 
                                 print(f"\n{'=' * 50}", flush=True)
-                                print(f"ALERT: @claude-agent 被提及！", flush=True)
+                                print("ALERT: @claude-agent 被提及！", flush=True)
                                 print(f"{'=' * 50}", flush=True)
                                 for m in all_msgs:
                                     ts = m.get("created_at", "")[:19]
@@ -168,7 +168,7 @@ async def listen_websocket(room_id: int, timeout: int = None):
                                 need = max(0, 4 - remaining)
                                 print(f"\n[Listener Status] 运行中: {remaining} | 目标: 4 | 建议续杯: {need}", flush=True)
                                 if need > 0:
-                                    print(f"  命令: .venv/bin/python adapters/claude_mention_listener.py 1 3600", flush=True)
+                                    print("  命令: .venv/bin/python adapters/claude_mention_listener.py 1 3600", flush=True)
                                 return all_msgs, "mention"
                 finally:
                     heartbeat_task.cancel()

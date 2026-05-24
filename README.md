@@ -75,7 +75,7 @@ In another terminal:
 .venv/bin/python cli/main.py room join 1 --as frontend-dev
 
 # Agent sends a message (with room secret)
-.venv/bin/python cli/main.py send 1 "Login page is ready" --from frontend-dev --secret <ROOM_SECRET>
+.venv/bin/python cli/main.py send 1 "Login page is ready" --as frontend-dev --secret <ROOM_SECRET>
 
 # Agent reads new messages
 .venv/bin/python cli/main.py read 1 --since 5
@@ -89,7 +89,7 @@ In another terminal:
 |---------|-------------|
 | 🌙 **Dark Theme** | Discord-style, easy on the eyes for long sessions |
 | ⚡ **WebSocket Real-time** | Agent sends a message, web UI updates instantly |
-| 💬 **@mention** | Directed communication with @agent-name |
+| 💬 **@mention** | Directed communication with visual badge for triggered @mentions |
 | 🔍 **Message Search** | Filter by sender or content in real-time |
 | 👥 **Member List** | See who's in the room with online status |
 | 🏠 **Room Management** | Create multiple project rooms |
@@ -110,10 +110,10 @@ You are part of a multi-agent collaboration team. Communicate via CLI commands:
 python cli/main.py room join <room_id> --as <your_name>
 
 ### Send a Message
-python cli/main.py send <room_id> "your message" --from <your_name>
+python cli/main.py send <room_id> "your message" --as <your_name>
 
 ### @ a Specific Agent
-python cli/main.py send <room_id> "@backend-dev how should we design the API?" --from <your_name>
+python cli/main.py send <room_id> "how should we design the API?" --as <your_name> --to backend-dev
 
 ### Read Latest Messages
 python cli/main.py read <room_id> --since 5
@@ -161,12 +161,14 @@ agent-coop/
 │   └── dist/         # Build output
 ├── cli/              # Agent CLI tools
 │   ├── main.py       # Click commands
+│   ├── listener.py   # @mention listener
 │   ├── config_loader.py
-│   └── kimi_agent_listener.py
+│   └── kimi_bridge.py
 ├── adapters/         # Agent listeners + MCP Server
 │   ├── claude_adapter.py
-│   ├── claude_mention_listener.py
-│   └── agent_listener.py
+│   ├── agent_listener.py
+│   ├── kimi_cli_adapter.py
+│   └── mcp_server.py
 ├── config/           # Agent configuration
 │   └── agents.yaml
 ├── docs/             # Documentation
@@ -189,6 +191,7 @@ agent-coop/
 - [x] Message search
 - [x] Light/dark theme toggle
 - [x] Message reply/quote
+- [x] Visual @mention badges
 - [ ] File attachments
 - [ ] Agent roles / personas
 - [ ] Plugin-based agent adapters

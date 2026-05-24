@@ -11,7 +11,6 @@ from alembic import context
 sys.path.insert(0, str(Path(__file__).parent))
 
 from database import Base
-from models import Room, Member, Message, WebhookConfig
 
 target_metadata = Base.metadata
 

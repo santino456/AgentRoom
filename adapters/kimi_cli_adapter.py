@@ -13,7 +13,6 @@ import sys
 import time
 import json
 import urllib.request
-from typing import List, Dict, Callable
 
 BASE_URL = "http://127.0.0.1:8080"
 KIMI_NAMES = {"Kimi-Agent", "kimi", "Kimi"}

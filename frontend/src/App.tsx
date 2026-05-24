@@ -1,16 +1,17 @@
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo, lazy, Suspense } from 'react'
 import { API_BASE, WS_BASE } from './config'
 import type { Room, Member, Message, AgentStatus, MemberStats } from './types'
 
-import Sidebar from './components/Sidebar'
 import ChatHeader from './components/ChatHeader'
 import MessageList from './components/MessageList'
 import MessageInput from './components/MessageInput'
-import MemberList from './components/MemberList'
 import Toast from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
 import { useMemberToken } from './hooks/useMemberToken'
+
+const Sidebar = lazy(() => import('./components/Sidebar'))
+const MemberList = lazy(() => import('./components/MemberList'))
 
 export default function App() {
   const { theme, setTheme } = useTheme()
@@ -30,12 +31,14 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
   const [replyTo, setReplyTo] = useState<Message | null>(null)
+  const [mentionTo, setMentionTo] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
   const [announcement, setAnnouncement] = useState('')
   const [memberStats, setMemberStats] = useState<Record<number, MemberStats>>({})
   const [searchResults, setSearchResults] = useState<Message[]>([])
   const [isSearching, setIsSearching] = useState(false)
+  const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({})
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -66,6 +69,28 @@ export default function App() {
   }, [currentRoomId])
 
   useEffect(() => { loadRooms() }, [loadRooms])
+
+  // Load unread count for a room
+  const loadUnreadCount = useCallback(async (roomId: number) => {
+    try {
+      const headers: Record<string, string> = {}
+      if (memberToken) headers['X-Member-Token'] = memberToken
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/messages/unread-count`, { credentials: 'include', headers })
+      if (res.ok) {
+        const data = await res.json()
+        const count = data.unread_count || 0
+        setUnreadCounts(prev => {
+          if (prev[roomId] === count) return prev
+          return { ...prev, [roomId]: count }
+        })
+      }
+    } catch {}
+  }, [memberToken])
+
+  // Load unread counts for all rooms
+  useEffect(() => {
+    rooms.forEach(room => loadUnreadCount(room.id))
+  }, [rooms, loadUnreadCount])
 
   // Load agent status
   const loadAgentStatus = useCallback(async (roomId: number, signal?: AbortSignal) => {
@@ -100,6 +125,10 @@ export default function App() {
       setAnnouncement('')
       return
     }
+    // Clear search when switching rooms
+    setSearchQuery('')
+    setSearchResults([])
+    setShowSearch(false)
     const controller = new AbortController()
     const headers: Record<string, string> = {}
     if (memberToken) headers['X-Member-Token'] = memberToken
@@ -194,6 +223,34 @@ export default function App() {
     }
   }, [input, currentRoomId, memberToken])
 
+  // Mark room as read
+  const markRoomRead = useCallback(async (roomId: number) => {
+    setUnreadCounts(prev => ({ ...prev, [roomId]: 0 }))
+    try {
+      const headers: Record<string, string> = {}
+      if (memberToken) headers['X-Member-Token'] = memberToken
+      // Get latest message and mark it as read
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/messages?limit=1`, { credentials: 'include', headers })
+      if (res.ok) {
+        const msgs = await res.json()
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          await fetch(`${API_BASE}/rooms/${roomId}/messages/read?message_id=${msgs[0].id}`, {
+            method: 'POST', credentials: 'include', headers
+          })
+        }
+      }
+    } catch {}
+  }, [memberToken])
+
+  // Mark initial room as read on first load
+  const hasMarkedInitialRead = useRef(false)
+  useEffect(() => {
+    if (currentRoomId && !hasMarkedInitialRead.current) {
+      hasMarkedInitialRead.current = true
+      markRoomRead(currentRoomId)
+    }
+  }, [currentRoomId, markRoomRead])
+
   // Load room data
   const loadRoomData = useCallback(async (roomId: number, signal?: AbortSignal) => {
     const headers: Record<string, string> = {}
@@ -250,6 +307,10 @@ export default function App() {
             return
           }
           const msg: Message = data
+          // Update unread count if message is for a different room
+          if (msg.room_id && msg.room_id !== currentRoomId) {
+            setUnreadCounts((prev) => ({ ...prev, [msg.room_id]: (prev[msg.room_id] || 0) + 1 }))
+          }
           setMessages((prev) => {
             const idx = prev.findIndex((m) => m.id === msg.id)
             if (idx >= 0) {
@@ -355,6 +416,7 @@ export default function App() {
     try {
       const body: any = { content }
       if (replyTo) body.reply_to = replyTo.id
+      if (mentionTo) body.to_name = mentionTo
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages`, {
         method: 'POST',
         headers,
@@ -366,6 +428,7 @@ export default function App() {
         throw new Error(err.detail || `Failed: ${res.status}`)
       }
       setReplyTo(null)
+      setMentionTo(null)
       // Delete draft after successful send
       try {
         const draftHeaders: Record<string, string> = {}
@@ -385,6 +448,7 @@ export default function App() {
   }
 
   const insertMention = (name: string) => {
+    setMentionTo(name)
     const mention = name === 'all' ? '@all ' : `@${name} `
     setInput((prev) => {
       const sep = prev && !prev.endsWith(' ') ? ' ' : ''
@@ -491,7 +555,31 @@ export default function App() {
 
   const currentRoom = rooms.find((r) => r.id === currentRoomId)
 
-  const fmtTime = (iso: string) => {
+  const myRole = members.find((m) => m.name === memberName)?.role || 'member'
+  const canGenerateInvite = myRole === 'owner' || myRole === 'admin'
+
+  const generateInvite = async () => {
+    if (!currentRoomId) return
+    try {
+      const headers: Record<string, string> = {}
+      if (memberToken) headers['X-Member-Token'] = memberToken
+      const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/invite`, { credentials: 'include', headers })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || 'Failed to generate invite')
+      }
+      const data = await res.json()
+      await navigator.clipboard.writeText(data.invite_url)
+      showToast('Invite link copied to clipboard!', 'success')
+    } catch (e: any) {
+      showToast(e.message || 'Failed to generate invite')
+    }
+  }
+
+  const cancelEdit = useCallback(() => setEditingId(null), [])
+
+  const fmtTime = (iso: string | null | undefined) => {
+    if (!iso) return ''
     try {
       const safeIso = iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z'
       const d = new Date(safeIso)
@@ -500,7 +588,8 @@ export default function App() {
     } catch { return '' }
   }
 
-  const fmtDate = (iso: string) => {
+  const fmtDate = (iso: string | null | undefined) => {
+    if (!iso) return ''
     try {
       const safeIso = iso.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(iso) ? iso : iso + 'Z'
       const d = new Date(safeIso)
@@ -541,23 +630,26 @@ export default function App() {
           />
         )}
 
-        <Sidebar
-          rooms={rooms}
-          currentRoomId={currentRoomId}
-          myName={memberName}
-          memberToken={memberToken}
-          showSidebar={showSidebar}
-          onRoomSelect={(id) => { setCurrentRoomId(id); setShowSidebar(false) }}
-          onCreateRoom={createRoom}
-          onMyNameChange={() => {
-            if (memberToken) {
-              // Already joined, need to re-join with new name
-              clearToken()
-            }
-          }}
-          onJoinRoom={joinRoom}
-          onClose={() => setShowSidebar(false)}
-        />
+        <Suspense fallback={null}>
+          <Sidebar
+            rooms={rooms}
+            currentRoomId={currentRoomId}
+            myName={memberName}
+            memberToken={memberToken}
+            showSidebar={showSidebar}
+            unreadCounts={unreadCounts}
+            onRoomSelect={(id) => { setCurrentRoomId(id); setShowSidebar(false); markRoomRead(id) }}
+            onCreateRoom={createRoom}
+            onMyNameChange={() => {
+              if (memberToken) {
+                // Already joined, need to re-join with new name
+                clearToken()
+              }
+            }}
+            onJoinRoom={joinRoom}
+            onClose={() => setShowSidebar(false)}
+          />
+        </Suspense>
 
         <main className="flex-1 flex flex-col min-w-0">
           <ChatHeader
@@ -568,6 +660,8 @@ export default function App() {
             onToggleSidebar={() => setShowSidebar(!showSidebar)}
             onToggleMembers={() => setShowMembers(!showMembers)}
             agentStatus={agentStatus}
+            canGenerateInvite={canGenerateInvite}
+            onGenerateInvite={generateInvite}
           />
 
           {/* Search bar - expandable */}
@@ -649,10 +743,11 @@ export default function App() {
             messages={messages}
             filteredMessages={filteredMessages}
             myName={memberName}
+            members={members}
             editingId={editingId}
             onStartEdit={startEdit}
             onSaveEdit={saveEdit}
-            onCancelEdit={() => { setEditingId(null) }}
+            onCancelEdit={cancelEdit}
             onDelete={deleteMsg}
             onReply={setReplyTo}
             fmtTime={fmtTime}
@@ -675,17 +770,19 @@ export default function App() {
           />
         </main>
 
-        <MemberList
-          members={members}
-          agentStatus={agentStatus}
-          showMembers={showMembers}
-          announcement={announcement}
-          memberStats={memberStats}
-          currentRoomId={currentRoomId}
-          memberToken={memberToken}
-          myName={memberName}
-          onRefreshMembers={() => currentRoomId && loadRoomData(currentRoomId)}
-        />
+        <Suspense fallback={null}>
+          <MemberList
+            members={members}
+            agentStatus={agentStatus}
+            showMembers={showMembers}
+            announcement={announcement}
+            memberStats={memberStats}
+            currentRoomId={currentRoomId}
+            memberToken={memberToken}
+            myName={memberName}
+            onRefreshMembers={() => currentRoomId && loadRoomData(currentRoomId)}
+          />
+        </Suspense>
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>

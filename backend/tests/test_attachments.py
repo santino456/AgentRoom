@@ -1,6 +1,15 @@
 import io
 
 
+def _join_room(client, room_id, secret, name):
+    resp = client.post(
+        f"/api/rooms/{room_id}/join",
+        json={"name": name, "type": "agent"},
+        headers={"X-Room-Secret": secret},
+    )
+    return resp.json()["token"]
+
+
 def test_upload_attachment(client, db_session):
     # Create a room first
     r = client.post("/api/rooms", json={"name": "test-attachments"})
@@ -47,6 +56,9 @@ def test_send_message_with_attachment(client, db_session):
     room_id = room["id"]
     secret = room["secret"]
 
+    # Join room to get member token
+    token = _join_room(client, room_id, secret, "test-agent")
+
     # Upload a file first
     upload = client.post(
         f"/api/rooms/{room_id}/attachments",
@@ -56,11 +68,11 @@ def test_send_message_with_attachment(client, db_session):
     assert upload.status_code == 200
     att = upload.json()
 
-    # Send message with attachment
+    # Send message with attachment using member token
     msg = client.post(
         f"/api/rooms/{room_id}/messages",
-        json={"from_name": "test-agent", "content": "see attached", "attachment_ids": [att["id"]]},
-        headers={"X-Room-Secret": secret},
+        json={"content": "see attached", "attachment_ids": [att["id"]]},
+        headers={"X-Member-Token": token},
     )
     assert msg.status_code == 200
     data = msg.json()

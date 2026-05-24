@@ -96,7 +96,7 @@ export default function MessageInput({
           .map((m) => (
             <button
               key={m.id}
-              onClick={() => onInsertMention(m.name)}
+              onClick={() => onInsertMention(m.display_name || m.name)}
               className="shrink-0 px-3 py-1 rounded-full text-[11px] transition-all hover:bg-white/10"
               style={{
                 color: 'var(--text-muted)',
@@ -105,7 +105,7 @@ export default function MessageInput({
                 borderRadius: '9999px',
               }}
             >
-              @{m.name}
+              @{m.display_name || m.name}
             </button>
           ))}
       </div>

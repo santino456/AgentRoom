@@ -22,8 +22,27 @@ def test_create_duplicate_room(client):
 
 
 def test_list_rooms_after_create(client):
-    client.post("/api/rooms", json={"name": "room-a"})
-    client.post("/api/rooms", json={"name": "room-b"})
+    # Create rooms
+    r1 = client.post("/api/rooms", json={"name": "room-a"})
+    r2 = client.post("/api/rooms", json={"name": "room-b"})
+    secret_a = r1.json()["secret"]
+    secret_b = r2.json()["secret"]
+
+    # Set user_token cookie so both rooms are associated with same user
+    client.cookies.set("user_token", "test-user-123")
+
+    # Join both rooms — user_token links them to the same user
+    client.post(
+        f"/api/rooms/{r1.json()['id']}/join",
+        json={"name": "tester", "type": "human"},
+        headers={"X-Room-Secret": secret_a},
+    )
+    client.post(
+        f"/api/rooms/{r2.json()['id']}/join",
+        json={"name": "tester", "type": "human"},
+        headers={"X-Room-Secret": secret_b},
+    )
+
     resp = client.get("/api/rooms")
     assert resp.status_code == 200
     rooms = resp.json()

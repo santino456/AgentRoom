@@ -7,6 +7,7 @@ interface SidebarProps {
   myName: string
   memberToken: string
   showSidebar: boolean
+  unreadCounts?: Record<number, number>
   onRoomSelect: (id: number) => void
   onCreateRoom: () => void
   onMyNameChange: (name: string) => void
@@ -20,6 +21,7 @@ export default function Sidebar({
   myName,
   memberToken,
   showSidebar,
+  unreadCounts,
   onRoomSelect,
   onCreateRoom,
   onJoinRoom,
@@ -131,39 +133,51 @@ export default function Sidebar({
             <span className="text-[10px]">点击下方 Join Room 加入</span>
           </div>
         )}
-        {rooms.map((room) => (
-          <button
-            key={room.id}
-            onClick={() => onRoomSelect(room.id)}
-            className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all btn-press sidebar-item-glow relative ${
-              room.id === currentRoomId ? 'font-medium' : ''
-            }`}
-            style={
-              room.id === currentRoomId
-                ? {
-                    backgroundColor: 'rgba(0, 113, 227, 0.12)',
-                    color: 'var(--accent-primary)',
-                  }
-                : { color: 'var(--text-secondary)' }
-            }
-          >
-            <span className="relative z-10 flex items-center gap-2">
-              <span
-                className="text-xs"
-                style={room.id === currentRoomId ? { color: 'var(--accent-primary)' } : {}}
-              >
-                #
-              </span>
-              <span className="truncate">{room.name}</span>
-              {room.id === currentRoomId && (
+        {rooms.map((room) => {
+          const unread = unreadCounts?.[room.id] || 0
+          const showUnread = unread > 0 && room.id !== currentRoomId && rooms.length > 1
+          return (
+            <button
+              key={room.id}
+              onClick={() => onRoomSelect(room.id)}
+              className={`w-full text-left px-3 py-2.5 rounded-xl text-sm transition-all btn-press sidebar-item-glow relative ${
+                room.id === currentRoomId ? 'font-medium' : ''
+              }`}
+              style={
+                room.id === currentRoomId
+                  ? {
+                      backgroundColor: 'rgba(0, 113, 227, 0.12)',
+                      color: 'var(--accent-primary)',
+                    }
+                  : { color: 'var(--text-secondary)' }
+              }
+            >
+              <span className="relative z-10 flex items-center gap-2">
                 <span
-                  className="ml-auto w-1.5 h-1.5 rounded-full status-pulse"
-                  style={{ backgroundColor: 'var(--accent-primary)' }}
-                />
-              )}
-            </span>
-          </button>
-        ))}
+                  className="text-xs"
+                  style={room.id === currentRoomId ? { color: 'var(--accent-primary)' } : {}}
+                >
+                  #
+                </span>
+                <span className="truncate flex-1">{room.name}</span>
+                {showUnread && (
+                  <span
+                    className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-bold"
+                    style={{ backgroundColor: 'var(--accent-coral)', color: '#fff' }}
+                  >
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
+                {room.id === currentRoomId && (
+                  <span
+                    className="ml-auto w-1.5 h-1.5 rounded-full status-pulse"
+                    style={{ backgroundColor: 'var(--accent-primary)' }}
+                  />
+                )}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Member Identity */}

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Room, Member
+from models import Room
 from dependencies import get_current_member
 
 router = APIRouter(prefix="/api/rooms/{room_id}/invite", tags=["invites"])

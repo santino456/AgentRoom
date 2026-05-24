@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -48,6 +48,7 @@ class Member(Base):
     user_token = Column(String, nullable=True, index=True)
     role = Column(String, default="member")
     description = Column(Text, default="", nullable=False)
+    display_name = Column(String, nullable=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_active = Column(DateTime, default=datetime.utcnow)
 

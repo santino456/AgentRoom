@@ -11,7 +11,7 @@ from websocket import manager
 from services.webhook_service import trigger_webhooks
 from rate_limiter import limiter
 from logging_config import get_logger
-from dependencies import get_current_member, get_optional_member
+from dependencies import get_current_member
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
 logger = get_logger("messages")
@@ -119,7 +119,11 @@ async def create_message(
 
     to_member_id = None
     if msg.to_name:
-        to_member = db.query(Member).filter(Member.room_id == room_id, Member.name == msg.to_name).first()
+        from sqlalchemy import or_
+        to_member = db.query(Member).filter(
+            Member.room_id == room_id,
+            or_(Member.name == msg.to_name, Member.display_name == msg.to_name)
+        ).first()
         if to_member:
             to_member_id = to_member.id
 

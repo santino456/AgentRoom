@@ -1,5 +1,4 @@
 import asyncio
-import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response
 from sqlalchemy.orm import Session

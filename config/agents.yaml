@@ -21,6 +21,17 @@ agents:
   rooms:
   - id: 1
     secret: ${ROOM_1_SECRET}
+- adapter: mcp
+  aliases:
+  - claude-军师
+  - 军师
+  - all
+  enabled: true
+  listener: cli/listener.py --agent claude-军师
+  name: claude-军师
+  rooms:
+  - id: 1
+    secret: ${ROOM_1_SECRET}
 global:
   base_url: http://127.0.0.1:8080
   heartbeat_interval: 20

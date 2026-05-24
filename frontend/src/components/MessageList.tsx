@@ -1,6 +1,6 @@
 import { useRef, useEffect, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import type { Message } from '../types'
+import type { Message, Member } from '../types'
 import MessageItem from './MessageItem'
 
 interface VirtualItem {
@@ -14,6 +14,7 @@ interface MessageListProps {
   messages: Message[]
   filteredMessages: Message[]
   myName: string
+  members: Member[]
   editingId: number | null
   onStartEdit: (msg: Message) => void
   onSaveEdit: (msgId: number, content: string) => void
@@ -28,6 +29,7 @@ export default function MessageList({
   messages,
   filteredMessages,
   myName,
+  members,
   editingId,
   onStartEdit,
   onSaveEdit,
@@ -70,13 +72,8 @@ export default function MessageList({
   const virtualizer = useVirtualizer({
     count: virtualItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 100,
-    measureElement: (el) => {
-      // Cache measurement to avoid repeated reads during scroll
-      const height = (el as HTMLElement).offsetHeight
-      return height || 100
-    },
-    overscan: 12,
+    estimateSize: () => 80,
+    overscan: 8,
     // 从底部开始渲染，聊天应用最新消息在底部
     scrollPaddingEnd: 0,
   })
@@ -123,7 +120,6 @@ export default function MessageList({
     // 首次加载完成：直接定位到底部，无动画
     if (!hasInitialLoaded.current && newCount > 0) {
       hasInitialLoaded.current = true
-      // 使用 requestAnimationFrame 确保虚拟列表已渲染
       requestAnimationFrame(() => {
         virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end' })
       })
@@ -133,11 +129,17 @@ export default function MessageList({
 
     // 有新消息到达
     if (newCount > prevCount) {
-      // 如果用户接近底部，平滑滚动
-      if (isNearBottom()) {
-        virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end', behavior: 'smooth' })
+      // 用户正在手动滚动时不强制跳转
+      if (isUserScrolling.current) {
+        prevMsgCount.current = newCount
+        return
       }
-      // 如果用户在看历史消息，不强制跳转
+      // 接近底部时才自动定位，避免跳到历史消息中间
+      if (isNearBottom()) {
+        requestAnimationFrame(() => {
+          virtualizer.scrollToIndex(virtualItems.length - 1, { align: 'end' })
+        })
+      }
     }
 
     prevMsgCount.current = newCount
@@ -199,6 +201,7 @@ export default function MessageList({
                     msg={item.msg}
                     isMe={item.msg.sender_name === myName}
                     myName={myName}
+                    members={members}
                     editingId={editingId}
                     onStartEdit={onStartEdit}
                     onSaveEdit={onSaveEdit}
