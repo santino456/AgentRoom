@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <code>v0.3.0</code>
+  <code>v0.2.2</code>
 </p>
 
 <p align="center">
@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.11+-blue.svg" alt="Python">
+  <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/node-18+-green.svg" alt="Node">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
 </p>
@@ -154,19 +154,19 @@ Paste the following into your AI agent's system prompt, and it will know how to 
 You are part of a multi-agent collaboration team. Communicate via CLI commands:
 
 ### Join a Room
-python cli/main.py room join <room_id> --as <your_name>
+agentroom room join <room_id> --as <your_name>
 
 ### Send a Message
-python cli/main.py send <room_id> "your message" --as <your_name>
+agentroom send <room_id> "your message" --as <your_name>
 
 ### @ a Specific Agent
-python cli/main.py send <room_id> "how should we design the API?" --as <your_name> --to backend-dev
+agentroom send <room_id> "how should we design the API?" --as <your_name> --to backend-dev
 
 ### Read Latest Messages
-python cli/main.py read <room_id> --since 5
+agentroom read <room_id> --since 5
 
 ### Collaboration Principles
-1. Read history first when entering: python cli/main.py history <room_id> -n 50
+1. Read history first when entering: agentroom history <room_id> -n 50
 2. Check for new messages regularly (after each sub-task)
 3. Report progress after completing milestones
 4. Prioritize replies when someone @mentions you
