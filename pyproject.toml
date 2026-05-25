@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentroom"
-version = "0.2.0"
+version = "0.2.1"
 description = "A lightweight local multi-agent AI collaboration platform"
 readme = "README.md"
 license = "MIT"
