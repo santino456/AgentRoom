@@ -1,4 +1,5 @@
 import asyncio
+from urllib.parse import quote
 
 from database import get_db
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
@@ -34,7 +35,7 @@ async def join_room(
         ).first()
         if existing:
             response.set_cookie(key="member_token", value=existing.token, max_age=31536000, path="/")
-            response.set_cookie(key="member_name", value=existing.name, max_age=31536000, path="/")
+            response.set_cookie(key="member_name", value=quote(existing.name), max_age=31536000, path="/")
             return {"ok": True, "member_id": existing.id, "token": existing.token, "name": existing.name}
 
     # Existing member by name — re-join without secret (backward compat)
@@ -46,7 +47,7 @@ async def join_room(
             existing_by_name.user_token = user_token
             db.commit()
         response.set_cookie(key="member_token", value=existing_by_name.token, max_age=31536000, path="/")
-        response.set_cookie(key="member_name", value=existing_by_name.name, max_age=31536000, path="/")
+        response.set_cookie(key="member_name", value=quote(existing_by_name.name), max_age=31536000, path="/")
         return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token, "name": existing_by_name.name}
 
     # New member — require room secret
@@ -82,5 +83,5 @@ async def join_room(
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
 
     response.set_cookie(key="member_token", value=m.token, max_age=31536000, path="/")
-    response.set_cookie(key="member_name", value=m.name, max_age=31536000, path="/")
+    response.set_cookie(key="member_name", value=quote(m.name), max_age=31536000, path="/")
     return {"ok": True, "member_id": m.id, "token": m.token, "name": m.name}
