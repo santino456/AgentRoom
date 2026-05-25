@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { API_BASE } from '../config'
+import { updateMemberRole } from '../api/client'
 import type { Member, AgentStatus, MemberStats } from '../types'
 
 interface MemberListProps {
@@ -12,6 +13,7 @@ interface MemberListProps {
   memberToken: string | null
   myName: string | null
   onRefreshMembers?: () => void
+  onDeleteRoom?: () => void
 }
 
 export default function MemberList({
@@ -24,6 +26,7 @@ export default function MemberList({
   memberToken,
   myName,
   onRefreshMembers,
+  onDeleteRoom,
 }: MemberListProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
@@ -32,6 +35,7 @@ export default function MemberList({
   const [saveError, setSaveError] = useState('')
   const [removingMember, setRemovingMember] = useState<Member | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
+  const [roleLoading, setRoleLoading] = useState<number | null>(null)
 
 
   const getStatus = (m: Member) => {
@@ -124,6 +128,29 @@ export default function MemberList({
     if (m.name === myName) return false
     const me = members.find((x) => x.name === myName)
     return me?.role === 'owner' || me?.role === 'admin'
+  }
+
+  const canChangeRole = (m: Member) => {
+    const me = members.find((x) => x.name === myName)
+    return me?.role === 'owner' && m.name !== myName
+  }
+
+  const handleRoleChange = async (m: Member, newRole: string) => {
+    if (!currentRoomId || !memberToken) return
+    setRoleLoading(m.id)
+    try {
+      const r = await updateMemberRole(currentRoomId, m.id, newRole, memberToken)
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        alert(err.detail || `Failed: ${r.status}`)
+        return
+      }
+      onRefreshMembers?.()
+    } catch (e: any) {
+      alert(e.message || 'Update role failed')
+    } finally {
+      setRoleLoading(null)
+    }
   }
 
   const handleRemove = async () => {
@@ -257,6 +284,42 @@ export default function MemberList({
                       </div>
                     )}
 
+                    {/* Role */}
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                        Role
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[10px] px-1.5 py-0.5 rounded-full"
+                          style={{
+                            color: m.role === 'owner' ? '#fbbf24' : m.role === 'admin' ? '#60a5fa' : 'var(--text-muted)',
+                            backgroundColor: m.role === 'owner' ? 'rgba(251,191,36,0.1)' : m.role === 'admin' ? 'rgba(96,165,250,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${m.role === 'owner' ? 'rgba(251,191,36,0.2)' : m.role === 'admin' ? 'rgba(96,165,250,0.2)' : 'var(--border-color)'}`,
+                          }}
+                        >
+                          {m.role || 'member'}
+                        </span>
+                        {canChangeRole(m) && (
+                          <select
+                            value={m.role || 'member'}
+                            onChange={(e) => handleRoleChange(m, e.target.value)}
+                            disabled={roleLoading === m.id}
+                            className="text-xs rounded-lg px-2 py-1 outline-none cursor-pointer"
+                            style={{
+                              backgroundColor: 'var(--bg-surface)',
+                              color: 'var(--text-secondary)',
+                              border: '1px solid var(--border-color)',
+                            }}
+                          >
+                            <option value="member">member</option>
+                            <option value="admin">admin</option>
+                            <option value="owner">owner</option>
+                          </select>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Edit button */}
                     {canEdit(m) && (
                       <button
@@ -284,6 +347,28 @@ export default function MemberList({
             )
           })}
         </div>
+
+        {/* Danger Zone — Disband Room */}
+        {(() => {
+          const me = members.find((x) => x.name === myName)
+          if (me?.role !== 'owner' || !onDeleteRoom) return null
+          return (
+            <div className="p-3 mt-auto" style={{ borderTop: '1px solid var(--border-color)' }}>
+              <button
+                onClick={onDeleteRoom}
+                className="w-full py-2 rounded-xl text-xs font-medium transition-all hover:opacity-90"
+                style={{ backgroundColor: 'rgba(255,59,48,0.1)', color: '#ff3b30', border: '1px solid rgba(255,59,48,0.2)' }}
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                  </svg>
+                  Disband Room
+                </span>
+              </button>
+            </div>
+          )
+        })()}
       </aside>
 
       {/* Edit Modal — only for editing */}

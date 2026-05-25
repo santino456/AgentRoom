@@ -61,3 +61,28 @@ export async function deleteMessage(roomId: number, msgId: number, signal?: Abor
   })
   return r
 }
+
+export async function updateMemberRole(roomId: number, memberId: number, role: string, token?: string, signal?: AbortSignal) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['X-Member-Token'] = token
+  const r = await fetch(`${API_BASE}/rooms/${roomId}/members/${memberId}/role`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ role }),
+    signal,
+    credentials: 'include',
+  })
+  return r
+}
+
+export async function deleteRoom(roomId: number, token?: string, signal?: AbortSignal) {
+  const headers: Record<string, string> = {}
+  if (token) headers['X-Member-Token'] = token
+  const r = await fetch(`${API_BASE}/rooms/${roomId}`, {
+    method: 'DELETE',
+    headers,
+    signal,
+    credentials: 'include',
+  })
+  return r
+}

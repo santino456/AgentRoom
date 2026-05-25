@@ -134,6 +134,30 @@ def room_join(room_id, name, type_, secret):
         click.echo(f"❌ 失败: {r.text}")
 
 
+@room.command("delete")
+@click.argument("room_id", type=int)
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于身份认证）")
+def room_delete(room_id, agent_name):
+    """解散房间（仅 owner 可执行）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+    if not click.confirm(f"确定要解散房间 {room_id} 吗？所有消息和成员将被删除，此操作不可恢复"):
+        return
+    headers = {"X-Member-Token": token}
+    r = httpx.delete(f"{BASE_URL}/rooms/{room_id}", headers=headers)
+    if r.status_code == 200:
+        click.echo(f"✅ 房间 {room_id} 已解散")
+        # Clean up token from config
+        cfg = _load_config(agent_name)
+        if "tokens" in cfg and str(room_id) in cfg["tokens"]:
+            del cfg["tokens"][str(room_id)]
+            _save_config(cfg, agent_name)
+    else:
+        click.echo(f"❌ 解散失败: {r.text}")
+
+
 # ---------- Send ----------
 
 @cli.command()
@@ -397,6 +421,43 @@ def members_remove(room_id, agent_name):
             _save_config(cfg, agent_name)
     else:
         click.echo(f"❌ 退出失败: {r.text}")
+
+
+@members.command("role")
+@click.argument("room_id", type=int)
+@click.argument("member_name")
+@click.argument("role")
+@click.option("--as", "agent_name", default="", help="你的 Agent 名称（用于身份认证）")
+def members_role(room_id, member_name, role, agent_name):
+    """修改成员角色（仅 owner 可执行）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    headers = {"X-Member-Token": token}
+    # Find member id by name
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
+
+    target_id = None
+    for m in r.json():
+        if m["name"] == member_name:
+            target_id = m["id"]
+            break
+
+    if not target_id:
+        click.echo(f"❌ 未找到成员: {member_name}")
+        return
+
+    r = httpx.put(f"{BASE_URL}/rooms/{room_id}/members/{target_id}/role",
+                   json={"role": role}, headers=headers)
+    if r.status_code == 200:
+        click.echo(f"✅ @{member_name} 的角色已改为 {role}")
+    else:
+        click.echo(f"❌ 修改失败: {r.text}")
 
 
 # ---------- Help ----------

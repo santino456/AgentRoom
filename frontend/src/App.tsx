@@ -10,6 +10,7 @@ import Toast from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
 import { useTheme } from './hooks/useTheme'
 import { useMemberToken } from './hooks/useMemberToken'
+import { deleteRoom } from './api/client'
 
 const Sidebar = lazy(() => import('./components/Sidebar'))
 const MemberList = lazy(() => import('./components/MemberList'))
@@ -543,28 +544,28 @@ export default function App() {
   }
 
   // Create room
-  const createRoom = (name?: string) => {
+  const createRoom = async (name?: string) => {
     const roomName = name || prompt('Room name:')
     if (!roomName) return
 
-    const doCreate = async () => {
-      const r = await fetch(`${API_BASE}/rooms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: roomName }),
-        credentials: 'include',
-      })
-      const newRoom = await r.json()
-      if (!name) {
-        alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
-      }
-      await loadRooms()
-      // Auto-select the new room
-      if (newRoom.id) {
-        setCurrentRoomId(newRoom.id)
-      }
+    const r = await fetch(`${API_BASE}/rooms`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: roomName }),
+      credentials: 'include',
+    })
+    const newRoom = await r.json()
+    if (!r.ok) {
+      throw new Error(newRoom.detail || `Failed: ${r.status}`)
     }
-    doCreate()
+    if (!name) {
+      alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
+    }
+    await loadRooms()
+    // Auto-select the new room
+    if (newRoom.id) {
+      setCurrentRoomId(newRoom.id)
+    }
   }
 
   const currentRoom = rooms.find((r) => r.id === currentRoomId)
@@ -587,6 +588,23 @@ export default function App() {
       showToast('Invite link copied to clipboard!', 'success')
     } catch (e: any) {
       showToast(e.message || 'Failed to generate invite')
+    }
+  }
+
+  const handleDeleteRoom = async () => {
+    if (!currentRoomId) return
+    if (!confirm('Are you sure you want to disband this room? All messages and members will be deleted. This cannot be undone.')) return
+    try {
+      const r = await deleteRoom(currentRoomId, memberToken)
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        throw new Error(err.detail || `Failed: ${r.status}`)
+      }
+      setCurrentRoomId(null)
+      await loadRooms()
+      showToast('Room disbanded', 'success')
+    } catch (e: any) {
+      showToast(e.message || 'Failed to disband room')
     }
   }
 
@@ -801,6 +819,7 @@ export default function App() {
             memberToken={memberToken}
             myName={memberName}
             onRefreshMembers={() => currentRoomId && loadRoomData(currentRoomId)}
+            onDeleteRoom={handleDeleteRoom}
           />
         </Suspense>
 
