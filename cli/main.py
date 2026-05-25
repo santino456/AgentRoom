@@ -51,6 +51,34 @@ def _save_config(cfg, agent_name: str = "default"):
         json.dump(cfg, f, indent=2)
 
 
+def _env_agent_name(ctx, param, value):
+    """Fallback to AGENTROOM_AGENT_NAME env var if --as not provided."""
+    if value:
+        return value
+    return os.environ.get("AGENTROOM_AGENT_NAME", value)
+
+
+def _env_agent_name_for_listener(ctx, param, value):
+    """Fallback to AGENTROOM_AGENT_NAME env var for --agent option."""
+    if value:
+        return value
+    return os.environ.get("AGENTROOM_AGENT_NAME", value)
+
+
+def _api_request(method, url, **kwargs):
+    """Wrap HTTP requests with friendly network error messages."""
+    try:
+        return method(url, **kwargs)
+    except httpx.ConnectError:
+        base = BASE_URL.replace("/api", "")
+        click.echo(f"❌ 无法连接到后端 ({base})")
+        click.echo("   请确认服务器已启动: agentroom server start")
+        sys.exit(1)
+    except httpx.TimeoutException:
+        click.echo("❌ 请求超时，请检查后端状态")
+        sys.exit(1)
+
+
 def _get_member_token(room_id: int, agent_name: str = "") -> str:
     cfg = _load_config(agent_name)
     return cfg.get("tokens", {}).get(str(room_id), "")
@@ -89,7 +117,7 @@ def room():
 @room.command("list")
 def room_list():
     """列出所有房间"""
-    r = httpx.get(f"{BASE_URL}/rooms")
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms")
     rooms = r.json()
     if not rooms:
         click.echo("(暂无房间)")
@@ -103,7 +131,7 @@ def room_list():
 @click.argument("name")
 def room_create(name):
     """创建房间"""
-    r = httpx.post(f"{BASE_URL}/rooms", json={"name": name})
+    r = _api_request(httpx.post, f"{BASE_URL}/rooms", json={"name": name})
     if r.status_code == 200:
         rm = r.json()
         click.echo(f"✅ 房间 '{rm['name']}' 创建成功 (id={rm['id']})")
@@ -113,7 +141,7 @@ def room_create(name):
 
 @room.command("join")
 @click.argument("room_id", type=int)
-@click.option("--as", "name", required=True, help="你的 Agent 名称")
+@click.option("--as", "name", required=True, help="你的 Agent 名称", callback=_env_agent_name)
 @click.option("--type", "type_", default="agent", help="类型: agent/human")
 @click.option("--secret", default="", help="房间 secret (可选，若房间已启用认证)")
 def room_join(room_id, name, type_, secret):
@@ -121,7 +149,7 @@ def room_join(room_id, name, type_, secret):
     headers = {}
     if secret:
         headers["X-Room-Secret"] = secret
-    r = httpx.post(f"{BASE_URL}/rooms/{room_id}/join", json={"name": name, "type": type_}, headers=headers)
+    r = _api_request(httpx.post, f"{BASE_URL}/rooms/{room_id}/join", json={"name": name, "type": type_}, headers=headers)
     if r.status_code == 200:
         data = r.json()
         token = data.get("token")
@@ -129,7 +157,36 @@ def room_join(room_id, name, type_, secret):
             cfg = _load_config(name)
             cfg.setdefault("tokens", {})[str(room_id)] = token
             _save_config(cfg, name)
+
+        # Auto-fetch room context after join
         click.echo(f"✅ @{name} 已加入房间 {room_id}")
+        click.echo("")
+
+        # Fetch members
+        r2 = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+        if r2.status_code == 200:
+            ms = r2.json()
+            click.echo(f"👥 成员 ({len(ms)}):")
+            for m in ms:
+                role = f" [{m['role']}]" if m.get('role') and m['role'] != 'member' else ''
+                you = " (你)" if m.get('is_me') else ''
+                click.echo(f"   • @{m['name']}{role}{you} ({m['type']})")
+            click.echo("")
+
+        # Fetch announcement
+        r3 = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/announcement", headers=headers)
+        if r3.status_code == 200:
+            announcement = r3.text.strip()
+            if announcement:
+                click.echo("📢 公告:")
+                for line in announcement.split('\n'):
+                    click.echo(f"   {line}")
+                click.echo("")
+
+        click.echo("💡 常用命令:")
+        click.echo(f"   agentroom history {room_id} -n 20")
+        click.echo(f"   agentroom send {room_id} \"hi\" --to <name>")
+        click.echo(f"   agentroom describe {room_id} \"我的角色\" --as {name}")
     else:
         click.echo(f"❌ 失败: {r.text}")
 
@@ -139,14 +196,14 @@ def room_join(room_id, name, type_, secret):
 @cli.command()
 @click.argument("room_id", type=int)
 @click.argument("content")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 @click.option("--to", default=None, help="@特定人")
 @click.option("--secret", default="", help="房间 secret (可选，若房间已启用认证)")
 def send(room_id, content, agent_name, to, secret):
     """发送消息到房间"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
 
     # Convert shell-escaped sequences to real characters
@@ -157,7 +214,7 @@ def send(room_id, content, agent_name, to, secret):
     headers = {"X-Member-Token": token}
     if secret:
         headers["X-Room-Secret"] = secret
-    r = httpx.post(f"{BASE_URL}/rooms/{room_id}/messages", json=payload, headers=headers)
+    r = _api_request(httpx.post, f"{BASE_URL}/rooms/{room_id}/messages", json=payload, headers=headers)
     if r.status_code == 200:
         msg = r.json()
         sender = msg.get("sender_name", "unknown")
@@ -173,15 +230,15 @@ def send(room_id, content, agent_name, to, secret):
 @click.argument("room_id", type=int)
 @click.option("--since", type=int, help="最近 N 分钟")
 @click.option("--to", default=None, help="过滤接收者")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def read(room_id, since, to, agent_name):
     """读取房间消息"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
     headers = {"X-Member-Token": token}
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 200}, headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 200}, headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取消息失败: {r.text}")
         return
@@ -210,15 +267,15 @@ def read(room_id, since, to, agent_name):
 @cli.command()
 @click.argument("room_id", type=int)
 @click.option("-n", default=50, help="最近 N 条")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def history(room_id, n, agent_name):
     """查看历史消息"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
     headers = {"X-Member-Token": token}
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": n}, headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": n}, headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取消息失败: {r.text}")
         return
@@ -242,12 +299,12 @@ def history(room_id, n, agent_name):
 @click.argument("room_id", type=int)
 @click.option("--interval", default=3, help="检查间隔(秒)")
 @click.option("--to", default=None, help="过滤接收者")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def watch(room_id, interval, to, agent_name):
     """持续监听新消息"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
     headers = {"X-Member-Token": token}
     click.echo(f"👀 监听房间 {room_id}，按 Ctrl+C 停止...")
@@ -255,7 +312,7 @@ def watch(room_id, interval, to, agent_name):
     try:
         while True:
             time.sleep(interval)
-            r = httpx.get(f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 100}, headers=headers)
+            r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/messages", params={"limit": 100}, headers=headers)
             if r.status_code != 200:
                 continue
             msgs = r.json()
@@ -283,15 +340,15 @@ def members():
 
 @members.command("list")
 @click.argument("room_id", type=int)
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def members_list(room_id, agent_name):
     """查看房间成员"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
     headers = {"X-Member-Token": token}
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取成员失败: {r.text}")
         return
@@ -307,17 +364,17 @@ def members_list(room_id, agent_name):
 
 @members.command("who")
 @click.argument("room_id", type=int)
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def members_who(room_id, agent_name):
     """查看团队分工（name, role, description）"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
     headers = {"X-Member-Token": token}
 
     # 获取成员列表
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取成员失败: {r.text}")
         return
@@ -327,14 +384,14 @@ def members_who(room_id, agent_name):
         return
 
     # 获取成员 stats（包含 description）
-    r2 = httpx.get(f"{BASE_URL}/rooms/{room_id}/members/stats", headers=headers)
+    r2 = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members/stats", headers=headers)
     stats_map = {}
     if r2.status_code == 200:
         for s in r2.json():
             stats_map[s['member_id']] = s
 
     # 获取公告
-    r3 = httpx.get(f"{BASE_URL}/rooms/{room_id}/announcement", headers=headers)
+    r3 = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/announcement", headers=headers)
     announcement = r3.text if r3.status_code == 200 else ""
 
     click.echo(f"👥 房间 {room_id} 团队分工")
@@ -366,23 +423,23 @@ def members_who(room_id, agent_name):
 
     if announcement.strip():
         click.echo("")
-        click.echo(f"📢 公告")
+        click.echo("📢 公告")
         for line in announcement.strip().split('\n'):
             click.echo(f"   {line}")
 
 
 @members.command("remove")
 @click.argument("room_id", type=int)
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 def members_remove(room_id, agent_name):
     """退出房间（删除自己）"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
 
     headers = {"X-Member-Token": token}
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取成员失败: {r.text}")
         return
@@ -438,9 +495,9 @@ def help():
 ║    listener start --agent [name] --room [id] 启动监听器     ║
 ║                                                              ║
 ║  使用示例                                                    ║
-║    python cli/main.py room list                              ║
-║    python cli/main.py send 1 "hello" --as Kimi-Agent         ║
-║    python cli/main.py members who 1 --as Kimi-Agent          ║
+║    agentroom room list                              ║
+║    agentroom send 1 "hello" --as Kimi-Agent         ║
+║    agentroom members who 1 --as Kimi-Agent          ║
 ╚══════════════════════════════════════════════════════════════╝
 """)
 
@@ -454,7 +511,7 @@ def listener():
 
 
 @listener.command("start")
-@click.option("--agent", required=True, help="Agent 名称")
+@click.option("--agent", required=True, help="Agent 名称", callback=_env_agent_name_for_listener)
 @click.option("--room", type=int, default=1, help="房间 ID")
 @click.option("--timeout", type=int, default=3600, help="超时时间(秒)")
 @click.option("--count", type=int, default=1, help="启动实例数量")
@@ -530,13 +587,13 @@ def listener_status():
 @cli.command()
 @click.argument("room_id", type=int)
 @click.argument("description")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
+@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 @click.option("--secret", default="", help="房间 secret (可选)")
 def describe(room_id, description, agent_name, secret):
     """设置自己在房间中的角色描述（会自动保存到 AGENTS.md 提醒）"""
     token = _get_member_token(room_id, agent_name)
     if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
         return
 
     headers = {"X-Member-Token": token}
@@ -544,7 +601,7 @@ def describe(room_id, description, agent_name, secret):
         headers["X-Room-Secret"] = secret
 
     # Find my member ID
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
     if r.status_code != 200:
         click.echo(f"❌ 获取成员列表失败: {r.text}")
         return

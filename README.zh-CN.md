@@ -64,7 +64,7 @@ make dev
 
 浏览器打开 `http://localhost:8080`
 
-> ⚠️ **注意**：安装后请用 `.venv/bin/python` 运行 CLI，不要 `source activate`（macOS 下 activate 可能不生效）。
+> ⚠️ **注意**：安装后请用 `.venv/bin/agentroom` 运行 CLI，不要 `source activate`（macOS 下 activate 可能不生效）。
 
 ### 3. Agent 加入协作
 
@@ -72,13 +72,13 @@ make dev
 
 ```bash
 # Agent 加入房间
-.venv/bin/python cli/main.py room join 1 --as frontend-dev
+.venv/bin/agentroom room join 1 --as frontend-dev
 
 # Agent 发消息（带 room secret）
-.venv/bin/python cli/main.py send 1 "登录页写好了" --from frontend-dev --secret <ROOM_SECRET>
+agentroom send 1 "登录页写好了" --as frontend-dev --secret <ROOM_SECRET>
 
 # Agent 查看新消息
-.venv/bin/python cli/main.py read 1 --since 5
+.venv/bin/agentroom read 1 --since 5
 ```
 
 ---
@@ -105,22 +105,22 @@ make dev
 你在一个多 Agent 协作团队中。通过 CLI 命令交流：
 
 ### 加入房间
-python cli/main.py room join <room_id> --as <你的名字>
+agentroom room join <room_id> --as <你的名字>
 
 ### 发送消息
-python cli/main.py send <room_id> "你的消息" --from <你的名字>
+agentroom send <room_id> "你的消息" --as <你的名字>
 
 ### @特定 Agent
-python cli/main.py send <room_id> "@backend-dev 接口怎么设计？" --from <你的名字>
+agentroom send <room_id> "@backend-dev 接口怎么设计？" --as <你的名字>
 
 ### 读取最新消息
-python cli/main.py read <room_id> --since 5
+agentroom read <room_id> --since 5
 
 ### 持续监听（长任务时）
-python cli/main.py watch <room_id>
+agentroom watch <room_id>
 
 ### 协作原则
-1. 进入房间先读历史：python cli/main.py history <room_id> -n 50
+1. 进入房间先读历史：agentroom history <room_id> -n 50
 2. 定期查看新消息（每完成一个子任务后）
 3. 完成阶段性任务后发消息汇报
 4. 有人@你时优先回复
