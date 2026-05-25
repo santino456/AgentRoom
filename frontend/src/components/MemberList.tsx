@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { API_BASE } from '../config'
-import { updateMemberRole } from '../api/client'
+import { updateMemberRole, updateAnnouncement } from '../api/client'
 import type { Member, AgentStatus, MemberStats } from '../types'
 
 interface MemberListProps {
@@ -14,6 +14,7 @@ interface MemberListProps {
   myName: string | null
   onRefreshMembers?: () => void
   onDeleteRoom?: () => void
+  onUpdateAnnouncement?: () => void
 }
 
 export default function MemberList({
@@ -27,6 +28,7 @@ export default function MemberList({
   myName,
   onRefreshMembers,
   onDeleteRoom,
+  onUpdateAnnouncement,
 }: MemberListProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
@@ -36,6 +38,9 @@ export default function MemberList({
   const [removingMember, setRemovingMember] = useState<Member | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
   const [roleLoading, setRoleLoading] = useState<number | null>(null)
+  const [editingAnnouncement, setEditingAnnouncement] = useState(false)
+  const [announcementText, setAnnouncementText] = useState(announcement)
+  const [savingAnnouncement, setSavingAnnouncement] = useState(false)
 
 
   const getStatus = (m: Member) => {
@@ -135,6 +140,30 @@ export default function MemberList({
     return me?.role === 'owner' && m.name !== myName
   }
 
+  const canEditAnnouncement = (() => {
+    const me = members.find((x) => x.name === myName)
+    return me?.role === 'owner' || me?.role === 'admin'
+  })()
+
+  const handleSaveAnnouncement = async () => {
+    if (!currentRoomId || !memberToken) return
+    setSavingAnnouncement(true)
+    try {
+      const r = await updateAnnouncement(currentRoomId, announcementText, memberToken)
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        alert(err.detail || `Failed: ${r.status}`)
+        return
+      }
+      setEditingAnnouncement(false)
+      onUpdateAnnouncement?.()
+    } catch (e: any) {
+      alert(e.message || 'Save failed')
+    } finally {
+      setSavingAnnouncement(false)
+    }
+  }
+
   const handleRoleChange = async (m: Member, newRole: string) => {
     if (!currentRoomId || !memberToken) return
     setRoleLoading(m.id)
@@ -187,14 +216,59 @@ export default function MemberList({
         style={{ borderRadius: '24px 0 0 24px', backgroundColor: 'var(--bg-elevated)' }}
       >
         {/* Announcement */}
-        {announcement && (
+        {(announcement || editingAnnouncement || canEditAnnouncement) && (
           <div className="mx-3 mt-3 px-3 py-2.5 rounded-2xl liquid-glass">
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: '#00d4aa' }}>
-              Announcement
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: '#00d4aa' }}>
+                Announcement
+              </div>
+              {canEditAnnouncement && !editingAnnouncement && (
+                <button
+                  onClick={() => { setEditingAnnouncement(true); setAnnouncementText(announcement) }}
+                  className="text-[10px] px-1.5 py-0.5 rounded-md transition-all hover:bg-white/10"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  Edit
+                </button>
+              )}
             </div>
-            <div className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
-              {announcement}
-            </div>
+            {editingAnnouncement ? (
+              <div className="space-y-2">
+                <textarea
+                  value={announcementText}
+                  onChange={(e) => setAnnouncementText(e.target.value)}
+                  rows={3}
+                  className="w-full rounded-xl px-2.5 py-2 text-xs outline-none resize-none"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                  placeholder="Enter announcement..."
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setEditingAnnouncement(false)}
+                    className="flex-1 py-1 rounded-lg text-[10px] transition-all hover:bg-white/5"
+                    style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveAnnouncement}
+                    disabled={savingAnnouncement}
+                    className="flex-1 py-1 rounded-lg text-[10px] font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+                    style={{ backgroundColor: '#00d4aa', color: '#000' }}
+                  >
+                    {savingAnnouncement ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+                {announcement || 'No announcement yet.'}
+              </div>
+            )}
           </div>
         )}
 

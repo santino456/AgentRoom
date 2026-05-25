@@ -9,7 +9,7 @@ interface SidebarProps {
   showSidebar: boolean
   unreadCounts?: Record<number, number>
   onRoomSelect: (id: number) => void
-  onCreateRoom: () => void
+  onCreateRoom: (name?: string) => void | Promise<void>
   onMyNameChange: (name: string) => void
   onJoinRoom: (roomId: number, name: string, secret: string) => void
   onClose: () => void
@@ -31,8 +31,25 @@ export default function Sidebar({
   const [joinSecret, setJoinSecret] = useState('')
   const [showJoinForm, setShowJoinForm] = useState(false)
   const [isJoiningAnotherRoom, setIsJoiningAnotherRoom] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [createRoomName, setCreateRoomName] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
   const isJoined = !!memberToken && !!myName
   const needsRoomId = !currentRoomId || isJoiningAnotherRoom
+
+  const handleCreate = async () => {
+    if (!createRoomName.trim()) return
+    setCreateLoading(true)
+    try {
+      await onCreateRoom(createRoomName.trim())
+      setShowCreateForm(false)
+      setCreateRoomName('')
+    } catch (e: any) {
+      alert(e.message || '创建失败')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
 
   const handleJoin = () => {
     const roomId = needsRoomId ? parseInt(joinRoomId.trim(), 10) : (currentRoomId || 0)
@@ -80,23 +97,59 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* Create Room Button */}
+      {/* Create Room */}
       <div className="px-3 pb-2">
-        <button
-          onClick={onCreateRoom}
-          className="w-full py-2.5 px-3 rounded-xl text-xs font-medium transition-all btn-press"
-          style={{
-            backgroundColor: 'var(--accent-primary)',
-            color: '#ffffff',
-          }}
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14"/><path d="M12 5v14"/>
-            </svg>
-            New Room
-          </span>
-        </button>
+        {!showCreateForm ? (
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="w-full py-2.5 px-3 rounded-xl text-xs font-medium transition-all btn-press"
+            style={{
+              backgroundColor: 'var(--accent-primary)',
+              color: '#ffffff',
+            }}
+          >
+            <span className="flex items-center justify-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14"/><path d="M12 5v14"/>
+              </svg>
+              New Room
+            </span>
+          </button>
+        ) : (
+          <div className="space-y-2">
+            <input
+              type="text"
+              placeholder="Room name"
+              value={createRoomName}
+              onChange={(e) => setCreateRoomName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+              className="w-full rounded-xl px-3 py-2 text-xs outline-none"
+              style={{
+                backgroundColor: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+              }}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setShowCreateForm(false); setCreateRoomName('') }}
+                className="flex-1 py-1.5 rounded-xl text-xs transition-all hover:bg-white/5"
+                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreate}
+                disabled={createLoading || !createRoomName.trim()}
+                className="flex-1 py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90 disabled:opacity-40"
+                style={{ backgroundColor: 'var(--accent-primary)', color: '#ffffff' }}
+              >
+                {createLoading ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Join Room Button */}

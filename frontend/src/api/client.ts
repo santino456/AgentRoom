@@ -86,3 +86,16 @@ export async function deleteRoom(roomId: number, token?: string, signal?: AbortS
   })
   return r
 }
+
+export async function updateAnnouncement(roomId: number, text: string, token?: string, signal?: AbortSignal) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['X-Member-Token'] = token
+  const r = await fetch(`${API_BASE}/rooms/${roomId}/announcement`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ announcement: text }),
+    signal,
+    credentials: 'include',
+  })
+  return r
+}

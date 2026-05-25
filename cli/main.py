@@ -460,6 +460,45 @@ def members_role(room_id, member_name, role, agent_name):
         click.echo(f"❌ 修改失败: {r.text}")
 
 
+@members.command("describe")
+@click.argument("room_id", type=int)
+@click.argument("member_name")
+@click.argument("description")
+@click.option("--as", "agent_name", default="", help="你的 Agent 名称（用于身份认证）")
+def members_describe(room_id, member_name, description, agent_name):
+    """修改成员描述（owner/admin 可改任意人，member 只能改自己）"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
+        return
+
+    headers = {"X-Member-Token": token}
+    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
+    if r.status_code != 200:
+        click.echo(f"❌ 获取成员失败: {r.text}")
+        return
+
+    target_id = None
+    for m in r.json():
+        if m["name"] == member_name:
+            target_id = m["id"]
+            break
+
+    if not target_id:
+        click.echo(f"❌ 未找到成员: {member_name}")
+        return
+
+    r = httpx.put(
+        f"{BASE_URL}/rooms/{room_id}/members/{target_id}/description",
+        json={"description": description},
+        headers=headers,
+    )
+    if r.status_code == 200:
+        click.echo(f"✅ @{member_name} 的描述已更新")
+    else:
+        click.echo(f"❌ 更新失败: {r.text}")
+
+
 # ---------- Help ----------
 
 @cli.command()

@@ -820,6 +820,14 @@ export default function App() {
             myName={memberName}
             onRefreshMembers={() => currentRoomId && loadRoomData(currentRoomId)}
             onDeleteRoom={handleDeleteRoom}
+            onUpdateAnnouncement={() => {
+              if (!currentRoomId) return
+              const headers: Record<string, string> = {}
+              if (memberToken) headers['X-Member-Token'] = memberToken
+              fetch(`${API_BASE}/rooms/${currentRoomId}/announcement`, { credentials: 'include', headers })
+                .then((r) => (r.ok ? r.text() : ''))
+                .then((text) => setAnnouncement(text))
+            }}
           />
         </Suspense>
 
