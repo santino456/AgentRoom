@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { API_BASE } from '../config'
-import type { Room, Member } from '../types'
-
-interface AgentStatus {
-  status: string
-  last_seen: string
-}
+import type { Room, Member, AgentStatus } from '../types'
 
 interface RoomState {
   rooms: Room[]

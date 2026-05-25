@@ -190,7 +190,10 @@ export default function MemberList({
                   onClick={() => toggleExpand(m)}
                 >
                   {!isHuman && (
-                    <div className={`w-2 h-2 rounded-full ${status.color}`} title={status.text} />
+                    <div
+                      className={`w-2 h-2 rounded-full ${status.color} ${status.text === 'Online' ? 'status-pulse' : ''}`}
+                      title={status.text}
+                    />
                   )}
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm truncate">{m.name}</span>
