@@ -1,8 +1,7 @@
 import secrets
 
-from sqlalchemy.orm import Session
-
 from models import Member
+from sqlalchemy.orm import Session
 
 
 def get_or_create_member(db: Session, room_id: int, name: str, type_: str = "agent", role: str = None) -> Member:

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 
 const STORAGE_KEY = 'agentroom-member-tokens'
-
 interface MemberTokenEntry {
   name: string
   token: string
@@ -28,7 +27,6 @@ export function useMemberToken(roomId: number | null) {
       return
     }
     try {
-      // Prefer localStorage (has name + token)
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const data: MemberTokens = JSON.parse(saved)
@@ -39,12 +37,18 @@ export function useMemberToken(roomId: number | null) {
           return
         }
       }
-      // Fallback to cookie (token only, no name)
+      // Fallback to cookie (token + name)
       const cookieToken = getCookie('member_token')
+      const cookieName = getCookie('member_name')
       if (cookieToken) {
         setToken(cookieToken)
-        // Name unknown from cookie alone; will be resolved later if needed
-        setMemberName('')
+        setMemberName(cookieName || '')
+        // Save to localStorage for next time
+        if (cookieName) {
+          const data: MemberTokens = saved ? JSON.parse(saved) : {}
+          data[roomId] = { name: cookieName, token: cookieToken }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+        }
         return
       }
     } catch {}

@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug in Agent Coop
+about: Report a bug in AgentRoom
 ---
 
 ## Description

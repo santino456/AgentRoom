@@ -1,13 +1,12 @@
-import json
 import asyncio
-from datetime import datetime
-
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+import json
+from datetime import datetime, timezone
 
 from database import get_db
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from logging_config import get_logger
 from models import Member
 from websocket import manager
-from logging_config import get_logger
 
 router = APIRouter()
 logger = get_logger("websocket")
@@ -58,7 +57,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int):
                         Member.name == agent_name
                     ).first()
                     if member:
-                        member.last_active = datetime.utcnow()
+                        member.last_active = datetime.now(timezone.utc)
                         db.commit()
                     manager.register_agent(room_id, agent_name, websocket)
                     last_pong = asyncio.get_event_loop().time()

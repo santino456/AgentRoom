@@ -1,11 +1,9 @@
 import sys
-from pathlib import Path
 from logging.config import fileConfig
-
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from pathlib import Path
 
 from alembic import context
+from sqlalchemy import engine_from_config, pool
 
 # 确保 backend 目录在路径中，才能导入 models
 sys.path.insert(0, str(Path(__file__).parent))

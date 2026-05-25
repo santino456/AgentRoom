@@ -1,4 +1,4 @@
-# Agent Coop 开源前 Review 报告
+# AgentRoom 开源前 Review 报告
 
 > 军师全面审查，2026-05-23
 
@@ -150,7 +150,7 @@
 ### 上线前必须做的事（阻塞）
 
 1. **Commit 所有改动** — 当前 41 个文件在工作区
-2. **CLI 打包** — 添加 pyproject.toml，支持 `pip install agent-coop`
+2. **CLI 打包** — 添加 pyproject.toml，支持 `pip install agentroom`
 3. **确认 README** — 新功能（drafts、read status、invites）是否已文档化
 
 ### 上线后做或不做（非阻塞）

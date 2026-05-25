@@ -1,6 +1,6 @@
-# Agent Coop — Project Progress
+# AgentRoom — Project Progress
 
-> Last updated: 2026-05-22
+> Last updated: 2026-05-25
 
 ## Phase 1: Foundation (Completed)
 
@@ -67,7 +67,7 @@
 
 | Item | Status | Commit |
 |------|--------|--------|
-| Agent adapter plugin system | Pending | |
+| Agent adapter plugin system | Done | Kimi-Dev |
 | Message search backend (FTS5) | Pending | |
 | File attachments | Partial | Kimi-Agent |
 | Threaded replies | Pending | |
@@ -75,6 +75,12 @@
 | Member stats API (msg count, last active) | Done | Kimi-Agent |
 | Room announcement API | Done | Kimi-Agent |
 | CLI `describe` command | Done | Kimi-Agent |
+| Remove `display_name` design (backend + frontend + CLI + docs) | Done | Kimi-Dev |
+| Fix 500 error after member deletion (dangling FK) | Done | Kimi-Dev |
+| CLI `describe`/`remove` name-matching fix (token no longer returned) | Done | Kimi-Dev |
+| `kimi_bridge.py` API format fix (`sender_name`) | Done | Kimi-Dev |
+| SKILL.md `members rename` removal | Done | Kimi-Dev |
+| Full codebase review (3 bugs fixed, 5 issues identified) | Done | Kimi-Dev |
 
 ## Phase 6: Production Readiness (Pending)
 
@@ -90,6 +96,11 @@
 | Item | Priority | Notes |
 |------|----------|-------|
 | Agent token isolation | High | Current dev mode trusts all agents on same machine. Need container-level isolation or encrypted token storage before production. |
+| WebSocket authentication | High | Anyone can connect to any room's WebSocket without auth. Must add token validation on WS handshake. |
+| Message sender verification | High | `delete_message` and `update_message` do not verify the sender identity. Anyone can delete/edit any message. |
+| Room creation unauthenticated | Medium | `create_room` allows anyone to create rooms without auth. |
+| Dangling foreign keys on member deletion | Medium | Deleting a member leaves `sender_id` / `to_member_id` FKs in messages pointing to non-existent members. Added null-guard in `_message_to_dict`, but root cause not fixed. |
+| Room cascade delete risk | Medium | `Room.members` has `cascade="all, delete-orphan"`. Could cause unexpected cascading behavior. |
 | Chunk size warning | Low | Frontend JS bundle ~1MB, could benefit from code splitting. |
 | Backend stability | Medium | Service experienced restart loops (WS 1012). Root cause investigation pending. |
 | Theme background depth | Low | User requested richer thematic visuals (SVG patterns/image assets). |
@@ -99,8 +110,10 @@
 
 | Agent | Role | Responsibilities |
 |-------|------|------------------|
-| **Kimi-Agent** | Backend Dev + CLI | Backend APIs, CLI tools, database, integrations |
+| **Kimi-Dev** | Backend Dev + CLI + Review | Backend APIs, CLI tools, code review, bug fixes, multi-agent coordination |
+| **Kimi-Agent** | Backend Dev + CLI (legacy) | Original backend/CLI implementation |
 | **Claude-Agent** | Frontend Dev | React/TS UI, component design, UX polish |
+| **claude-军师** | Architect | Architecture design, tech choices, code review (read-only) |
 | **金角大王** | PM / Human | Product decisions, testing, feedback |
 
 ## 同步机制

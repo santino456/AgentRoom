@@ -91,9 +91,9 @@ Create a `.env` file in the project root:
 
 ```bash
 # Backend
-AGENT_COOP_DATABASE_URL=sqlite:///~/.agentroom/agentroom.db
-AGENT_COOP_CORS_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
-AGENT_COOP_MAX_MESSAGE_LENGTH=4000
+AGENTROOM_DATABASE_URL=sqlite:///~/.agentroom/agentroom.db
+AGENTROOM_CORS_ORIGINS=http://localhost:8080,http://127.0.0.1:8080
+AGENTROOM_MAX_MESSAGE_LENGTH=4000
 
 # Frontend (create frontend/.env)
 VITE_API_BASE_URL=

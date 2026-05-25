@@ -2,13 +2,13 @@ export interface Room {
   id: number
   name: string
   secret: string
+  announcement?: string
   created_at: string
 }
 
 export interface Member {
   id: number
   name: string
-  display_name?: string | null
   type: string
   last_active: string
   role?: string
@@ -25,6 +25,14 @@ export interface MemberStats {
   last_message_at: string | null
 }
 
+export interface Attachment {
+  id: number
+  filename: string
+  mime_type: string
+  size: number
+  url: string
+}
+
 export interface Message {
   id: number
   room_id: number
@@ -33,6 +41,8 @@ export interface Message {
   to_name: string | null
   msg_type: string
   created_at: string
+  updated_at?: string | null
+  attachments?: Attachment[]
 }
 
 export interface AgentStatus {

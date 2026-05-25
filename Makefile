@@ -18,7 +18,7 @@ dev:
 # Install dependencies
 install:
 	@echo "📦 Installing backend dependencies..."
-	@uv venv && uv pip install -r requirements.txt
+	@uv venv && uv pip install -e ".[dev]"
 	@echo "📦 Installing frontend dependencies..."
 	@cd frontend && npm install
 

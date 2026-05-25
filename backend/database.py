@@ -1,14 +1,10 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from pathlib import Path
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-DB_PATH = Path.home() / ".agentroom" / "agentroom.db"
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-
-SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
+from config import settings
 
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    settings.database_url,
     connect_args={"check_same_thread": False},
     echo=False,
 )

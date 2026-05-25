@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agent Coop CLI — Agent 协作命令行工具
+AgentRoom CLI — AI Agent 协作命令行工具
 """
 
 import click
@@ -60,7 +60,7 @@ def fmt_time(iso):
 
 @click.group()
 def cli():
-    """Agent Coop — 本地 Agent 协作平台 CLI"""
+    """AgentRoom — 本地 Agent 协作平台 CLI"""
     pass
 
 
@@ -287,54 +287,15 @@ def members_list(room_id, agent_name):
         return
     click.echo(f"👥 房间 {room_id} 的成员:")
     for m in ms:
-        dn = m.get('display_name') or m['name']
         role = f" [{m['role']}]" if m.get('role') and m['role'] != 'member' else ''
-        click.echo(f"   • @{m['name']}{role} ({m['type']}) — {dn}")
-
-
-@members.command("rename")
-@click.argument("room_id", type=int)
-@click.argument("new_name")
-@click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
-def members_rename(room_id, new_name, agent_name):
-    """修改自己的 display name"""
-    token = _get_member_token(room_id, agent_name)
-    if not token:
-        click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
-        return
-
-    # 先获取自己的 member_id
-    headers = {"X-Member-Token": token}
-    r = httpx.get(f"{BASE_URL}/rooms/{room_id}/members", headers=headers)
-    if r.status_code != 200:
-        click.echo(f"❌ 获取成员失败: {r.text}")
-        return
-    ms = r.json()
-    me = None
-    for m in ms:
-        if m.get('token') == token:
-            me = m
-            break
-    if not me:
-        click.echo("❌ 未找到当前成员")
-        return
-
-    r = httpx.put(
-        f"{BASE_URL}/rooms/{room_id}/members/{me['id']}/display-name",
-        json={"display_name": new_name},
-        headers=headers,
-    )
-    if r.status_code == 200:
-        click.echo(f"✅ Display name 已更新为: {new_name}")
-    else:
-        click.echo(f"❌ 更新失败: {r.text}")
+        click.echo(f"   • @{m['name']}{role} ({m['type']})")
 
 
 @members.command("who")
 @click.argument("room_id", type=int)
 @click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）")
 def members_who(room_id, agent_name):
-    """查看团队分工（name, display_name, role, description）"""
+    """查看团队分工（name, role, description）"""
     token = _get_member_token(room_id, agent_name)
     if not token:
         click.echo("❌ 未找到成员 token，请先执行: python cli/main.py room join {room_id} --as <name>")
@@ -363,7 +324,6 @@ def members_who(room_id, agent_name):
 
     for i, m in enumerate(ms):
         name = m['name']
-        dn = m.get('display_name') or name
         role = m.get('role', 'member')
         role_tag = f" [{role}]" if role and role != 'member' else ''
         mtype = m.get('type', 'unknown')
@@ -377,7 +337,7 @@ def members_who(room_id, agent_name):
         prefix = "└─" if is_last else "├─"
         indent = "   " if is_last else "│  "
 
-        click.echo(f"{prefix} @{name}{role_tag} ({mtype}) — {dn}")
+        click.echo(f"{prefix} @{name}{role_tag} ({mtype})")
         if desc:
             for line in desc.split('\n'):
                 click.echo(f"{indent} {line}")
@@ -405,7 +365,7 @@ def members_remove(room_id, agent_name):
 
     my_id = None
     for m in r.json():
-        if m.get('token') == token:
+        if m['name'] == agent_name:
             my_id = m['id']
             break
 
@@ -432,7 +392,7 @@ def help():
     """显示详细使用帮助"""
     click.echo("""
 ╔══════════════════════════════════════════════════════════════╗
-║                    Agent Coop CLI 使用指南                   ║
+║                    AgentRoom CLI 使用指南                   ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  房间管理                                                    ║
 ║    room list                           查看所有房间          ║
@@ -447,7 +407,6 @@ def help():
 ║  成员管理                                                    ║
 ║    members list [room_id] --as [name]  查看成员列表         ║
 ║    members who [room_id] --as [name]   查看团队分工         ║
-║    members rename [room_id] [name] --as [name] 修改昵称    ║
 ║    members remove [room_id] --as [name] 退出房间            ║
 ║    describe [room_id] [desc] --as [name] 设置角色描述       ║
 ║                                                              ║
@@ -568,8 +527,8 @@ def describe(room_id, description, agent_name, secret):
 
     my_id = None
     for m in r.json():
-        if m.get("token") == token:
-            my_id = m["id"]
+        if m['name'] == agent_name:
+            my_id = m['id']
             break
 
     if my_id is None:

@@ -20,7 +20,6 @@ interface MessageListProps {
   onSaveEdit: (msgId: number, content: string) => void
   onCancelEdit: () => void
   onDelete: (msgId: number) => void
-  onReply: (msg: Message) => void
   fmtTime: (iso: string) => string
   fmtDate: (iso: string) => string
 }
@@ -35,7 +34,6 @@ export default function MessageList({
   onSaveEdit,
   onCancelEdit,
   onDelete,
-  onReply,
   fmtTime,
   fmtDate,
 }: MessageListProps) {
@@ -207,7 +205,6 @@ export default function MessageList({
                     onSaveEdit={onSaveEdit}
                     onCancelEdit={onCancelEdit}
                     onDelete={onDelete}
-                    onReply={onReply}
                     fmtTime={fmtTime}
                   />
                 )}

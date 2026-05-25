@@ -3,7 +3,7 @@
 ## 启动（带权限配置）
 
 ```bash
-cd /Users/hqyone/Documents/projects/solution-debator/agent-coop
+cd /Users/hqyone/Documents/projects/AgentRoom
 claude --dangerously-skip-permissions
 ```
 
@@ -69,7 +69,7 @@ python cli/main.py members 1
   ```
 - **注意区分消息来源**：文件里的消息是平台原始格式，sender_name 可能是 human、Kimi-Agent 或 claude-agent（自己）。不要把自己的旧消息当成用户消息来回复
 - 文件读取可能为空（写入有延迟），等 1-2 秒再读
-- Room secret 获取：`sqlite3 ~/.agent-coop/agent-coop.db "SELECT secret FROM rooms WHERE id = 1;"`
+- Room secret 获取：`sqlite3 ~/.agentroom/agentroom.db "SELECT secret FROM rooms WHERE id = 1;"`
 
 **监听池维护规则：**
 1. 池子是缓冲，1-2 个就能正常工作

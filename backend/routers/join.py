@@ -1,14 +1,13 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request, Response
-from sqlalchemy.orm import Session
-
 from database import get_db
-from models import Room, Member, Message, MessageType
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from models import Member, Message, MessageType, Room
 from schemas import MemberCreate
-from websocket import manager
 from services.member_service import get_or_create_member
 from services.webhook_service import trigger_webhooks
+from sqlalchemy.orm import Session
+from websocket import manager
 
 router = APIRouter(tags=["join"])
 
@@ -35,7 +34,8 @@ async def join_room(
         ).first()
         if existing:
             response.set_cookie(key="member_token", value=existing.token, max_age=31536000, path="/")
-            return {"ok": True, "member_id": existing.id, "token": existing.token}
+            response.set_cookie(key="member_name", value=existing.name, max_age=31536000, path="/")
+            return {"ok": True, "member_id": existing.id, "token": existing.token, "name": existing.name}
 
     # Existing member by name — re-join without secret (backward compat)
     existing_by_name = db.query(Member).filter(
@@ -46,7 +46,8 @@ async def join_room(
             existing_by_name.user_token = user_token
             db.commit()
         response.set_cookie(key="member_token", value=existing_by_name.token, max_age=31536000, path="/")
-        return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token}
+        response.set_cookie(key="member_name", value=existing_by_name.name, max_age=31536000, path="/")
+        return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token, "name": existing_by_name.name}
 
     # New member — require room secret
     if room.secret and room.secret != x_room_secret:
@@ -81,4 +82,5 @@ async def join_room(
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
 
     response.set_cookie(key="member_token", value=m.token, max_age=31536000, path="/")
-    return {"ok": True, "member_id": m.id, "token": m.token}
+    response.set_cookie(key="member_name", value=m.name, max_age=31536000, path="/")
+    return {"ok": True, "member_id": m.id, "token": m.token, "name": m.name}

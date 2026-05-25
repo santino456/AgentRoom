@@ -1,31 +1,19 @@
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File, Form
+from database import get_db
+from dependencies import get_room
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, UploadFile
+from models import Attachment, Room
 from sqlalchemy.orm import Session
 
 from config import settings
-from database import get_db
-from models import Room, Attachment
 
 router = APIRouter(prefix="/api/rooms/{room_id}/attachments", tags=["attachments"])
-
-
 UPLOAD_DIR = Path.home() / ".agentroom" / "uploads"
-
-
-def _get_room(room_id: int, db: Session) -> Room:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return room
-
-
 def _verify_secret(room: Room, secret: str):
     if room.secret and room.secret != secret:
         raise HTTPException(status_code=403, detail="Invalid room secret")
-
-
 @router.post("")
 async def upload_attachment(
     room_id: int,
@@ -34,7 +22,7 @@ async def upload_attachment(
     uploader_name: str = Form(default=""),
     db: Session = Depends(get_db),
 ):
-    room = _get_room(room_id, db)
+    room = get_room(room_id, db)
     _verify_secret(room, x_room_secret)
 
     # 读取文件内容
@@ -77,11 +65,9 @@ async def upload_attachment(
         "size": attachment.size,
         "url": f"/uploads/room_{room_id}/{safe_name}",
     }
-
-
 @router.get("")
 def list_attachments(room_id: int, db: Session = Depends(get_db)):
-    _get_room(room_id, db)
+    get_room(room_id, db)
     attachments = db.query(Attachment).filter(Attachment.room_id == room_id).all()
     return [
         {

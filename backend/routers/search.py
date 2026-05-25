@@ -1,22 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
 from database import get_db
-from models import Room, Message
+from dependencies import get_current_member, get_room
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from models import Message
 from schemas import MessageOut
-from dependencies import get_current_member
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/rooms/{room_id}/search", tags=["search"])
-
-
-def _get_room(room_id: int, db: Session) -> Room:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return room
-
-
 @router.get("", response_model=list[MessageOut])
 def search_messages(
     room_id: int,
@@ -27,7 +17,7 @@ def search_messages(
     db: Session = Depends(get_db),
 ):
     """Search messages using SQLite FTS5."""
-    _get_room(room_id, db)
+    get_room(room_id, db)
     get_current_member(room_id, request, x_member_token, db)
 
     if not q or not q.strip():

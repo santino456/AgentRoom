@@ -32,10 +32,7 @@ export default function MemberList({
   const [saveError, setSaveError] = useState('')
   const [removingMember, setRemovingMember] = useState<Member | null>(null)
   const [isRemoving, setIsRemoving] = useState(false)
-  const [renamingMember, setRenamingMember] = useState<Member | null>(null)
-  const [newDisplayName, setNewDisplayName] = useState('')
-  const [isRenaming, setIsRenaming] = useState(false)
-  const [renameError, setRenameError] = useState('')
+
 
   const getStatus = (m: Member) => {
     const status = agentStatus[m.name]
@@ -154,50 +151,6 @@ export default function MemberList({
     }
   }
 
-  const getDisplayName = (m: Member) => m.display_name || m.name
-
-  const canRename = (m: Member) => {
-    if (m.name === myName) return true
-    const me = members.find((x) => x.name === myName)
-    return me?.role === 'owner' || me?.role === 'admin'
-  }
-
-  const startRename = (m: Member) => {
-    setRenamingMember(m)
-    setNewDisplayName(m.display_name || '')
-    setRenameError('')
-  }
-
-  const handleRename = async () => {
-    if (!renamingMember || !currentRoomId || !memberToken) return
-    setIsRenaming(true)
-    setRenameError('')
-    try {
-      const res = await fetch(
-        `${API_BASE}/rooms/${currentRoomId}/members/${renamingMember.id}/display-name`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Member-Token': memberToken,
-          },
-          credentials: 'include',
-          body: JSON.stringify({ display_name: newDisplayName.trim() || null }),
-        }
-      )
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || `Failed: ${res.status}`)
-      }
-      setRenamingMember(null)
-      onRefreshMembers?.()
-    } catch (e: any) {
-      setRenameError(e.message || 'Rename failed')
-    } finally {
-      setIsRenaming(false)
-    }
-  }
-
   return (
     <>
       <aside
@@ -240,7 +193,7 @@ export default function MemberList({
                     <div className={`w-2 h-2 rounded-full ${status.color}`} title={status.text} />
                   )}
                   <div className="flex flex-col min-w-0">
-                    <span className="text-sm truncate">{getDisplayName(m)}</span>
+                    <span className="text-sm truncate">{m.name}</span>
                     {!isHuman && agentStatus[m.name] && (
                       <span className="text-[9px]" style={{ color: 'var(--text-muted)' }}>
                         {status.label}
@@ -309,17 +262,6 @@ export default function MemberList({
                         style={{ backgroundColor: 'rgba(0,212,170,0.1)', color: '#00d4aa', border: '1px solid rgba(0,212,170,0.2)' }}
                       >
                         Edit Description
-                      </button>
-                    )}
-
-                    {/* Rename button */}
-                    {canRename(m) && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); startRename(m) }}
-                        className="w-full py-1.5 rounded-xl text-xs font-medium transition-all hover:brightness-110"
-                        style={{ backgroundColor: 'rgba(0,113,227,0.1)', color: '#0071e3', border: '1px solid rgba(0,113,227,0.2)' }}
-                      >
-                        Rename
                       </button>
                     )}
 
@@ -450,56 +392,7 @@ export default function MemberList({
         </div>
       )}
 
-      {/* Rename Modal */}
-      {renamingMember && (
-        <div
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
-          onClick={() => setRenamingMember(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-3xl p-5 space-y-4"
-            style={{ backgroundColor: 'var(--bg-elevated)' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-sm font-semibold">Rename Member</div>
-            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-              Set a display name for <strong>{renamingMember.name}</strong>. Leave empty to use the original name.
-            </div>
-            <input
-              value={newDisplayName}
-              onChange={(e) => setNewDisplayName(e.target.value)}
-              placeholder="Display name (leave empty to reset)"
-              className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-              style={{
-                backgroundColor: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-              }}
-              maxLength={30}
-              autoFocus
-            />
-            {renameError && <div className="text-xs text-red-400">{renameError}</div>}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setRenamingMember(null)}
-                className="flex-1 px-3 py-1.5 rounded-xl text-xs transition-all hover:bg-white/10"
-                style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-color)' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleRename}
-                disabled={isRenaming}
-                className="flex-1 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90 disabled:opacity-50"
-                style={{ backgroundColor: '#0071e3', color: '#fff' }}
-              >
-                {isRenaming ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </>
   )
 }

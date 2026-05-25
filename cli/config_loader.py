@@ -1,5 +1,5 @@
 """
-Agent Coop 配置加载器
+AgentRoom 配置加载器
 支持 YAML 配置文件 + 环境变量替换
 """
 import os

@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta
-
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
-from models import Room, Member
+from fastapi import APIRouter, Depends, HTTPException, Query
+from models import Member, Room
 from schemas import AgentStatusOut
+from sqlalchemy.orm import Session
 from websocket import manager
 
 router = APIRouter(prefix="/api/rooms/{room_id}/agent-status", tags=["agent-status"])
@@ -18,7 +17,7 @@ def get_agent_status(room_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Room not found")
 
     members = db.query(Member).filter(Member.room_id == room_id, Member.type == "agent").all()
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     online_threshold = timedelta(minutes=3)
 
     result = []

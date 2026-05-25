@@ -1,6 +1,6 @@
-# Agent Coop — Agent Collaboration Guide
+# AgentRoom — Agent Collaboration Guide
 
-> Paste this guide into your system prompt, and your agent will know how to collaborate using Agent Coop.
+> Paste this guide into your system prompt, and your agent will know how to collaborate using AgentRoom.
 
 ---
 

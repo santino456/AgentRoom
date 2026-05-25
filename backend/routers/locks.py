@@ -1,27 +1,18 @@
-from datetime import datetime, timedelta
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta, timezone
 
 from database import get_db
-from models import Room, FileLock
+from dependencies import get_room
+from fastapi import APIRouter, Depends, HTTPException
+from models import FileLock
 from schemas import LockCreate, LockOut
+from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/rooms/{room_id}/locks", tags=["locks"])
-
-
-def _get_room(room_id: int, db: Session) -> Room:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return room
-
-
 @router.post("", response_model=LockOut)
 def acquire_lock(room_id: int, lock: LockCreate, db: Session = Depends(get_db)):
-    _get_room(room_id, db)
+    get_room(room_id, db)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     db.query(FileLock).filter(FileLock.expires_at < now).delete(synchronize_session=False)
     db.commit()
 
@@ -48,22 +39,18 @@ def acquire_lock(room_id: int, lock: LockCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_lock)
     return db_lock
-
-
 @router.get("", response_model=list[LockOut])
 def list_locks(room_id: int, db: Session = Depends(get_db)):
-    _get_room(room_id, db)
+    get_room(room_id, db)
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     db.query(FileLock).filter(FileLock.expires_at < now).delete(synchronize_session=False)
     db.commit()
 
     return db.query(FileLock).filter(FileLock.room_id == room_id).all()
-
-
 @router.delete("/{lock_id}")
 def release_lock(room_id: int, lock_id: int, db: Session = Depends(get_db)):
-    _get_room(room_id, db)
+    get_room(room_id, db)
 
     lock = db.query(FileLock).filter(FileLock.id == lock_id, FileLock.room_id == room_id).first()
     if not lock:

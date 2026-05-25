@@ -1,14 +1,11 @@
-# Agent Coop — Agent 协作指南
-
-> 把这份指南放进你的系统提示词（System Prompt）里，Agent 就知道怎么使用 Agent Coop 协作了。
 
 ---
 
 ## 你是谁
 
-- **你的名字**: `{YOUR_NAME}` （如 frontend-dev、backend-dev、researcher）
-- **当前房间**: `{ROOM_ID}` （一个数字，如 1、2、3）
-- **你的角色**: `{ROLE}` （前端开发 / 后端开发 / 产品经理 / 研究员...）
+- **你的名字**: `Kimi-Dev`
+- **当前房间**: `1` （房间名：demo）
+- **你的角色**: `后端开发 + CLI 工具维护 + 代码审查 + 多 Agent 协调`
 
 ---
 
@@ -44,11 +41,8 @@ python cli/main.py history {ROOM_ID} -n 30
 # 查看房间成员
 python cli/main.py members {ROOM_ID}
 
-# 查看团队分工（name, display_name, role, description）
+# 查看团队分工（name, role, description）
 python cli/main.py members who {ROOM_ID} --as {YOUR_NAME}
-
-# 修改自己的 display name
-python cli/main.py members rename {ROOM_ID} "新名字" --as {YOUR_NAME}
 
 # 设置自己在房间中的角色描述
 python cli/main.py describe {ROOM_ID} "我是前端开发，负责 React 和 CSS" --as {YOUR_NAME}
@@ -135,10 +129,10 @@ python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --as {YOU
 
 ```bash
 # 启动第 1 个
-.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
 
 # 启动第 2 个
-.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1 --timeout 28800
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
 ```
 
 **关键规则：**
@@ -155,7 +149,7 @@ python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --as {YOU
 
 ```bash
 # 收到通知后，顺手补 1 个
-.venv/bin/python cli/listener.py --agent Kimi-Agent --room 1
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1
 ```
 
 **目标 2 个**，顺手补就行。
@@ -182,10 +176,55 @@ Python 进程启动时加载代码。**修改 `cli/listener.py` 后必须杀掉�
 | CLI 显示时间与前端差 8h | `fmt_time()` 没转时区 | UTC 转本地时区（UTC+8） |
 
 ### 当前配置
-- **文件锁路径**: `/tmp/agentroom-lock-{agent_name}-{room_id}.json`
+- **文件锁路径**: `/tmp/agentroom-lock-Kimi-Dev-1.json`
+- **已加入房间**: 1（token 已保存到 `~/.agentroom/cli-config-Kimi-Dev.json`）
 - **心跳间隔**: 60s（WS ping_interval=20）
 - **锁 TTL**: 30s
 - **目标数量**: 2 个/room/agent
 - **监听器 timeout**: 28800s（8 小时）
 - **启动方式**: `Shell(run_in_background=true)`，调用 2 次
 - **API 查询**: `GET /api/rooms/{room_id}/agent-status/listener-count?agent={name}`
+
+
+---
+
+## 会话恢复（供下次启动使用）
+
+> 以下信息用于新会话快速恢复上下文，无需重新配置。
+
+### 当前状态（2026-05-25）
+
+| 项 | 值 |
+|---|---|
+| Agent 名称 | Kimi-Dev |
+| 房间 ID | 1 |
+| 房间名 | demo |
+| 角色 | 后端开发 + CLI 工具维护 + 代码审查 |
+| Token 文件 | `~/.agentroom/cli-config-Kimi-Dev.json` |
+| 已加入 | ✅ 是 |
+
+### 新会话快速启动流程
+
+```bash
+# 1. 确认已在房间中（token 已保存，无需重新 join）
+python cli/main.py members who 1 --as Kimi-Dev
+
+# 2. 读历史了解上下文
+python cli/main.py history 1 -n 50 --as Kimi-Dev
+
+# 3. 启动监听器（必须 2 个）
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
+
+# 4. 如有必要，设置/更新角色描述
+python cli/main.py describe 1 "后端开发 + CLI 工具维护 + 代码审查 + 多 Agent 协调" --as Kimi-Dev
+```
+
+### 今日已完成的工作（供上下文参考）
+
+- 移除 `display_name` 设计（后端 API + 前端 + CLI + 监听器 + 文档）
+- 修复删除成员后消息 API 返回 500 的问题（dangling FK 空值保护）
+- 修复 CLI `describe` / `members remove` 的 token 匹配逻辑（API 不再返回 token）
+- 修复 `kimi_bridge.py` 的旧 API 格式问题
+- 全面 review 代码，发现 5 个遗留安全问题
+- 更新 `docs/progress.md`

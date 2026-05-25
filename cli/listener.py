@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agent Coop — 通用监听器 (Unified Listener)
+AgentRoom — 通用监听器 (Unified Listener)
 支持多 Agent 通过 --agent 参数切换，自动读取 config/agents.yaml
 
 用法:
@@ -122,14 +122,7 @@ def fetch_members(base_url: str, room_id: int, token: str = ""):
 
 def build_aliases_from_members(members: list, agent_name: str) -> list[str]:
     """从成员列表构建触发关键词。每个监听器只响应 @自己 和 @all。"""
-    # 监听自己的 name 和 display_name，以及 @all
     aliases = {agent_name.lower(), "all"}
-    for m in members:
-        if m.get("name", "").lower() == agent_name.lower():
-            dn = (m.get("display_name") or "").strip()
-            if dn:
-                aliases.add(dn.lower())
-            break
     return list(aliases)
 
 
@@ -320,7 +313,7 @@ async def listen_websocket(
                         pending_messages.append(msg)
 
                         # 触发规则：
-                        # 1. to_name 定向匹配（精确匹配 name 或 display_name）
+                        # 1. to_name 定向匹配（精确匹配 name）
                         # 2. to_name == "all" 或内容含 @all（广播）
                         # 3. 消息内容中的普通 @mention 不再触发（避免误触发）
                         to_name = (msg.get("to_name") or "").lower()

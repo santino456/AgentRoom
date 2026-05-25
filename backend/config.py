@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     max_attachment_size_mb: int = 10
     debug: bool = False
 
-    model_config = ConfigDict(env_prefix="AGENT_COOP_", case_sensitive=False)
+    model_config = ConfigDict(env_prefix="AGENTROOM_", case_sensitive=False)
 
 
 settings = Settings()

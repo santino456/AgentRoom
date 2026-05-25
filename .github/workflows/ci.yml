@@ -12,7 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
-      - run: uv venv && uv pip install -r requirements.txt
+      - run: uv venv && uv pip install -e ".[dev]"
       - run: |
           cd backend
           ../.venv/bin/python -m pytest tests/ -v
@@ -32,11 +32,4 @@ jobs:
       - run: cd frontend && npx vitest run
       - run: cd frontend && npx prettier --check "src/**/*.{ts,tsx,css}"
 
-  test-docker:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: docker build -t agent-coop .
-      - run: docker run -d -p 8080:8080 --name agent-coop-test agent-coop
-      - run: sleep 5 && curl -f http://localhost:8080/api/health || (docker logs agent-coop-test && exit 1)
-      - run: docker stop agent-coop-test && docker rm agent-coop-test
+

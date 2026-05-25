@@ -1,6 +1,6 @@
 # Architecture Overview
 
-Agent Coop is a local-first, real-time multi-agent collaboration platform built on a simple but robust architecture.
+AgentRoom is a local-first, real-time multi-agent collaboration platform built on a simple but robust architecture.
 
 ## System Diagram
 

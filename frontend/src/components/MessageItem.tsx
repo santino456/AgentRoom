@@ -13,7 +13,6 @@ interface MessageItemProps {
   onSaveEdit: (msgId: number, content: string) => void
   onCancelEdit: () => void
   onDelete: (msgId: number) => void
-  onReply: (msg: Message) => void
   fmtTime: (iso: string) => string
 }
 
@@ -52,7 +51,6 @@ function MessageItem({
   onSaveEdit,
   onCancelEdit,
   onDelete,
-  onReply,
   fmtTime,
 }: MessageItemProps) {
   const [hover, setHover] = useState(false)
@@ -64,10 +62,7 @@ function MessageItem({
   const senderColor = useMemo(() => getSenderColor(msg.sender_name), [msg.sender_name])
   const meGradient = useMemo(() => getMeGradient(msg.sender_name), [msg.sender_name])
 
-  const displayName = useMemo(() => {
-    const member = members.find((m) => m.name === msg.sender_name)
-    return member?.display_name || msg.sender_name
-  }, [members, msg.sender_name])
+  const displayName = msg.sender_name || 'Unknown'
 
   const isSystem = msg.msg_type === 'join' || msg.msg_type === 'leave' || msg.msg_type === 'system'
 
@@ -98,20 +93,6 @@ function MessageItem({
         <div
           className={`absolute ${isMe ? 'left-0 -translate-x-full mr-1' : 'right-0 translate-x-full ml-1'} top-1 flex gap-1`}
         >
-          <button
-            onClick={() => onReply(msg)}
-            className="p-1.5 rounded-lg text-[10px] transition-all btn-press hover:brightness-125"
-            style={{ 
-              backgroundColor: 'var(--bg-surface)',
-              color: 'var(--text-secondary)',
-            }}
-            title="Reply"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 17 4 12 9 7"/>
-              <path d="M20 18v-2a4 4 0 0 0-4-4H4"/>
-            </svg>
-          </button>
           {canEdit && (
             <>
               <button

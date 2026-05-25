@@ -1,8 +1,8 @@
 import json
 
 from database import get_db
-from models import WebhookConfig
 from logging_config import get_logger
+from models import WebhookConfig
 
 logger = get_logger("webhook")
 
@@ -14,16 +14,17 @@ async def trigger_webhooks(room_id: int, message: dict):
         db = next(get_db())
         configs = db.query(WebhookConfig).filter(
             WebhookConfig.room_id == room_id,
-            WebhookConfig.enabled == True
+            WebhookConfig.enabled.is_(True)
         ).all()
         if not configs:
             return
         msg_type = message.get("msg_type", "message")
         payload = json.dumps(message, ensure_ascii=False)
 
-        import httpx
-        import hmac
         import hashlib
+        import hmac
+
+        import httpx
         async with httpx.AsyncClient(timeout=10) as client:
             for cfg in configs:
                 events = cfg.events.split(",")

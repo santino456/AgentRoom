@@ -14,7 +14,7 @@ def _add_trace_id(logger, method_name, event_dict):
 
 
 def configure_logging(json_format: bool = True):
-    """Configure structured logging for Agent Coop.
+    """Configure structured logging for AgentRoom.
 
     JSON output for production parsing; pretty console for development.
     """

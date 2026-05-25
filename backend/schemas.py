@@ -28,7 +28,6 @@ class MemberCreate(BaseModel):
 class MemberOut(BaseModel):
     id: int
     name: str
-    display_name: Optional[str] = None
     type: str
     role: str = "member"
     description: str = ""
@@ -90,7 +89,6 @@ class WebhookOut(BaseModel):
 class MemberStatsOut(BaseModel):
     member_id: int
     name: str
-    display_name: Optional[str] = None
     type: str
     role: str
     description: str
@@ -102,12 +100,17 @@ class MemberDescriptionUpdate(BaseModel):
     description: str = Field(..., max_length=500)
 
 
-class MemberDisplayNameUpdate(BaseModel):
-    display_name: str = Field(..., max_length=100)
+
+class RoomUpdate(BaseModel):
+    name: Optional[str] = Field(None, max_length=settings.max_room_name_length)
 
 
 class RoomAnnouncementUpdate(BaseModel):
     announcement: str = Field(..., max_length=2000)
+
+
+class MemberRoleUpdate(BaseModel):
+    role: str = Field(..., max_length=50)
 
 
 class AgentStatusOut(BaseModel):

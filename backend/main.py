@@ -1,6 +1,5 @@
 import os
 import sys
-
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,10 +8,11 @@ from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import settings
-from database import engine, Base
-from logging_config import configure_logging, new_trace_id
 import structlog
+from database import Base, engine
+from logging_config import configure_logging, new_trace_id
+
+from config import settings
 
 # Allow tests to override the database engine
 _db_engine = engine
@@ -21,6 +21,7 @@ _db_engine = engine
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging(json_format=not settings.debug)
+    # Dev mode: auto-create tables. Production should use Alembic migrations.
     Base.metadata.create_all(bind=_db_engine)
     yield
 
@@ -45,8 +46,35 @@ async def trace_id_middleware(request: Request, call_next):
     structlog.contextvars.clear_contextvars()
     return response
 
+
+@app.middleware("http")
+async def no_cache_html_middleware(request: Request, call_next):
+    response = await call_next(request)
+    content_type = response.headers.get("content-type", "")
+    if "text/html" in content_type:
+        response.headers["cache-control"] = "no-cache, no-store, must-revalidate"
+        response.headers["pragma"] = "no-cache"
+        response.headers["expires"] = "0"
+    return response
+
 # Register routers
-from routers import health, rooms, members, join, messages, webhooks, locks, agent_status, websocket, attachments, auth, drafts, search, invites, read_status
+from routers import (  # noqa: E402
+    agent_status,
+    attachments,
+    auth,
+    drafts,
+    health,
+    invites,
+    join,
+    locks,
+    members,
+    messages,
+    read_status,
+    rooms,
+    search,
+    webhooks,
+    websocket,
+)
 
 app.include_router(health.router)
 app.include_router(auth.router)

@@ -5,14 +5,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
+from database import Base, get_db
 from fastapi.testclient import TestClient
+from main import app
+from rate_limiter import limiter
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
-
-from database import Base, get_db
-from main import app
-from rate_limiter import limiter
 
 # In-memory SQLite for tests (StaticPool ensures all connections share the same DB)
 TEST_DATABASE_URL = "sqlite:///:memory:"
@@ -24,7 +23,8 @@ engine = create_engine(
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Monkeypatch main module's engine reference so lifespan uses test DB
-import main as main_module
+import main as main_module  # noqa: E402
+
 main_module._db_engine = engine
 
 

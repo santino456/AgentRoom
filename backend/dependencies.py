@@ -1,8 +1,15 @@
-from fastapi import Header, HTTPException, Depends, Request
+from database import get_db
+from fastapi import Depends, Header, HTTPException, Request
+from models import Member, Room
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import Room, Member
+
+def get_room(room_id: int, db: Session) -> Room:
+    """Fetch a room by ID or raise 404."""
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return room
 
 
 def get_room_secret(x_room_secret: str = Header(default="")) -> str:

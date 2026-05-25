@@ -30,7 +30,6 @@ export default function App() {
   const [isSending, setIsSending] = useState(false)
   const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const [replyTo, setReplyTo] = useState<Message | null>(null)
   const [mentionTo, setMentionTo] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState('')
@@ -306,6 +305,10 @@ export default function App() {
             setMessages((prev) => prev.filter((m) => m.id !== data.id))
             return
           }
+          // Ignore ping/pong/heartbeat and malformed messages
+          if (data.type === 'ping' || data.type === 'pong' || data.type === 'heartbeat' || data.id == null) {
+            return
+          }
           const msg: Message = data
           // Update unread count if message is for a different room
           if (msg.room_id && msg.room_id !== currentRoomId) {
@@ -415,7 +418,6 @@ export default function App() {
 
     try {
       const body: any = { content }
-      if (replyTo) body.reply_to = replyTo.id
       if (mentionTo) body.to_name = mentionTo
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages`, {
         method: 'POST',
@@ -427,7 +429,6 @@ export default function App() {
         const err = await res.json().catch(() => ({}))
         throw new Error(err.detail || `Failed: ${res.status}`)
       }
-      setReplyTo(null)
       setMentionTo(null)
       // Delete draft after successful send
       try {
@@ -749,7 +750,6 @@ export default function App() {
             onSaveEdit={saveEdit}
             onCancelEdit={cancelEdit}
             onDelete={deleteMsg}
-            onReply={setReplyTo}
             fmtTime={fmtTime}
             fmtDate={fmtDate}
           />
@@ -761,8 +761,6 @@ export default function App() {
             isSending={isSending}
             myName={memberName}
             members={members}
-            replyTo={replyTo}
-            onCancelReply={() => setReplyTo(null)}
             onInsertMention={insertMention}
             onUploadFiles={uploadFiles}
             isUploading={isUploading}

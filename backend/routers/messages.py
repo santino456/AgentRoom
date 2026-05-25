@@ -1,37 +1,27 @@
 import asyncio
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
-from sqlalchemy.orm import Session
-
 from database import get_db
-from models import Room, Member, Message, Attachment
-from schemas import MessageCreate, MessageUpdate, MessageOut, PaginatedMessages
-from websocket import manager
-from services.webhook_service import trigger_webhooks
-from rate_limiter import limiter
+from dependencies import get_current_member, get_room
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from logging_config import get_logger
-from dependencies import get_current_member
+from models import Attachment, Member, Message
+from rate_limiter import limiter
+from schemas import MessageCreate, MessageOut, MessageUpdate, PaginatedMessages
+from services.webhook_service import trigger_webhooks
+from sqlalchemy.orm import Session
+from websocket import manager
 
 router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
 logger = get_logger("messages")
-
-
-def _get_room(room_id: int, db: Session) -> Room:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return room
-
-
 def _message_to_dict(m, db: Session):
     attachments = db.query(Attachment).filter(Attachment.message_id == m.id).all()
     return {
         "id": m.id,
         "room_id": m.room_id,
-        "sender_name": m.sender.name if m.sender else None,
+        "sender_name": m.sender.name if m.sender else ("system" if m.msg_type in ("join", "leave", "system") else None),
         "content": m.content,
-        "to_name": m.to_member_id and db.query(Member).filter(Member.id == m.to_member_id).first().name,
+        "to_name": (lambda tm: tm.name if tm else None)(db.query(Member).filter(Member.id == m.to_member_id).first()) if m.to_member_id else None,
         "msg_type": m.msg_type,
         "created_at": m.created_at,
         "updated_at": m.updated_at,
@@ -46,8 +36,6 @@ def _message_to_dict(m, db: Session):
             for a in attachments
         ],
     }
-
-
 @router.get("", response_model=list[MessageOut])
 def list_messages(
     room_id: int,
@@ -57,13 +45,21 @@ def list_messages(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
+    get_room(room_id, db)
     # Verify membership
     get_current_member(room_id, request, x_member_token, db)
+
+    from sqlalchemy import or_
 
     msgs = (
         db.query(Message)
         .filter(Message.room_id == room_id)
+        .filter(
+            or_(
+                Message.sender_id.isnot(None),
+                Message.msg_type.in_(["join", "leave", "system"]),
+            )
+        )
         .order_by(Message.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -71,8 +67,6 @@ def list_messages(
     )
     result = [_message_to_dict(m, db) for m in msgs]
     return list(reversed(result))
-
-
 @router.get("/paginated", response_model=PaginatedMessages)
 def list_messages_paginated(
     room_id: int,
@@ -82,13 +76,31 @@ def list_messages_paginated(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
+    get_room(room_id, db)
     get_current_member(room_id, request, x_member_token, db)
 
-    total = db.query(Message).filter(Message.room_id == room_id).count()
+    from sqlalchemy import or_
+
+    total = (
+        db.query(Message)
+        .filter(Message.room_id == room_id)
+        .filter(
+            or_(
+                Message.sender_id.isnot(None),
+                Message.msg_type.in_(["join", "leave", "system"]),
+            )
+        )
+        .count()
+    )
     msgs = (
         db.query(Message)
         .filter(Message.room_id == room_id)
+        .filter(
+            or_(
+                Message.sender_id.isnot(None),
+                Message.msg_type.in_(["join", "leave", "system"]),
+            )
+        )
         .order_by(Message.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -100,8 +112,6 @@ def list_messages_paginated(
         "total": total,
         "has_more": offset + limit < total,
     }
-
-
 @router.post("", response_model=MessageOut)
 async def create_message(
     room_id: int,
@@ -110,7 +120,7 @@ async def create_message(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
+    get_room(room_id, db)
 
     sender = get_current_member(room_id, request, x_member_token, db)
 
@@ -119,10 +129,9 @@ async def create_message(
 
     to_member_id = None
     if msg.to_name:
-        from sqlalchemy import or_
         to_member = db.query(Member).filter(
             Member.room_id == room_id,
-            or_(Member.name == msg.to_name, Member.display_name == msg.to_name)
+            Member.name == msg.to_name
         ).first()
         if to_member:
             to_member_id = to_member.id
@@ -149,27 +158,7 @@ async def create_message(
                 att.message_id = db_msg.id
         db.commit()
 
-    attachments = db.query(Attachment).filter(Attachment.message_id == db_msg.id).all()
-    msg_out = {
-        "id": db_msg.id,
-        "room_id": db_msg.room_id,
-        "sender_name": sender.name,
-        "content": db_msg.content,
-        "to_name": msg.to_name,
-        "msg_type": db_msg.msg_type,
-        "created_at": db_msg.created_at.isoformat(),
-        "updated_at": db_msg.updated_at.isoformat() if db_msg.updated_at else None,
-        "attachments": [
-            {
-                "id": a.id,
-                "filename": a.filename,
-                "mime_type": a.mime_type,
-                "size": a.size,
-                "url": f"/uploads/room_{room_id}/{Path(a.storage_path).name}",
-            }
-            for a in attachments
-        ],
-    }
+    msg_out = _message_to_dict(db_msg, db)
     await manager.broadcast(room_id, msg_out)
     asyncio.create_task(trigger_webhooks(room_id, msg_out))
 
@@ -187,8 +176,6 @@ async def create_message(
             break
 
     return msg_out
-
-
 @router.put("/{message_id}", response_model=MessageOut)
 async def update_message(
     room_id: int,
@@ -198,42 +185,24 @@ async def update_message(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
-    get_current_member(room_id, request, x_member_token, db)
+    get_room(room_id, db)
+    member = get_current_member(room_id, request, x_member_token, db)
 
     db_msg = db.query(Message).filter(Message.id == message_id, Message.room_id == room_id).first()
     if not db_msg:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    # Only sender or owner/admin can edit
+    if db_msg.sender_id != member.id and member.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Can only edit your own messages")
+
     db_msg.content = update.content
     db.commit()
     db.refresh(db_msg)
 
-    attachments = db.query(Attachment).filter(Attachment.message_id == db_msg.id).all()
-    msg_out = {
-        "id": db_msg.id,
-        "room_id": db_msg.room_id,
-        "sender_name": db_msg.sender.name if db_msg.sender else None,
-        "content": db_msg.content,
-        "to_name": db_msg.to_member_id and db.query(Member).filter(Member.id == db_msg.to_member_id).first().name,
-        "msg_type": db_msg.msg_type,
-        "created_at": db_msg.created_at.isoformat(),
-        "updated_at": db_msg.updated_at.isoformat() if db_msg.updated_at else None,
-        "attachments": [
-            {
-                "id": a.id,
-                "filename": a.filename,
-                "mime_type": a.mime_type,
-                "size": a.size,
-                "url": f"/uploads/room_{room_id}/{Path(a.storage_path).name}",
-            }
-            for a in attachments
-        ],
-    }
+    msg_out = _message_to_dict(db_msg, db)
     await manager.broadcast(room_id, msg_out)
     return msg_out
-
-
 @router.delete("/{message_id}")
 async def delete_message(
     room_id: int,
@@ -242,12 +211,16 @@ async def delete_message(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
-    get_current_member(room_id, request, x_member_token, db)
+    get_room(room_id, db)
+    member = get_current_member(room_id, request, x_member_token, db)
 
     db_msg = db.query(Message).filter(Message.id == message_id, Message.room_id == room_id).first()
     if not db_msg:
         raise HTTPException(status_code=404, detail="Message not found")
+
+    # Only sender or owner/admin can delete
+    if db_msg.sender_id != member.id and member.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Can only delete your own messages")
 
     db.delete(db_msg)
     db.commit()

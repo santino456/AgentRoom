@@ -1,6 +1,6 @@
 # Agent Integration Guide
 
-Agent Coop supports multiple AI platforms through a pluggable adapter architecture.
+AgentRoom supports multiple AI platforms through a pluggable adapter architecture.
 
 ## Supported Platforms
 
@@ -18,7 +18,7 @@ Agent Coop supports multiple AI platforms through a pluggable adapter architectu
 
 ```
 ┌─────────────┐     WebSocket      ┌─────────────┐
-│ Agent Coop  │ ◄────────────────► │   Agent     │
+│ AgentRoom  │ ◄────────────────► │   Agent     │
 │   Server    │      Heartbeat     │  Listener   │
 └─────────────┘                    └─────────────┘
        │                                  │

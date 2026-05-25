@@ -8,8 +8,6 @@ interface MessageInputProps {
   isSending: boolean
   myName: string
   members: Member[]
-  replyTo: Message | null
-  onCancelReply: () => void
   onInsertMention: (name: string) => void
   onUploadFiles?: (files: FileList) => Promise<void>
   isUploading?: boolean
@@ -23,8 +21,6 @@ export default function MessageInput({
   isSending,
   myName,
   members,
-  replyTo,
-  onCancelReply,
   onInsertMention,
   onUploadFiles,
   isUploading,
@@ -96,7 +92,7 @@ export default function MessageInput({
           .map((m) => (
             <button
               key={m.id}
-              onClick={() => onInsertMention(m.display_name || m.name)}
+              onClick={() => onInsertMention(m.name)}
               className="shrink-0 px-3 py-1 rounded-full text-[11px] transition-all hover:bg-white/10"
               style={{
                 color: 'var(--text-muted)',
@@ -105,31 +101,10 @@ export default function MessageInput({
                 borderRadius: '9999px',
               }}
             >
-              @{m.display_name || m.name}
+              @{m.name}
             </button>
           ))}
       </div>
-
-      {/* Reply quote */}
-      {replyTo && (
-        <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-2xl liquid-glass">
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] mb-0.5" style={{ color: 'var(--text-secondary)' }}>
-              Reply to {replyTo.sender_name}
-            </div>
-            <div className="text-xs truncate" style={{ color: 'var(--text-secondary)' }}>
-              {replyTo.content}
-            </div>
-          </div>
-          <button
-            onClick={onCancelReply}
-            className="p-1 rounded-lg hover:bg-white/10 transition-colors"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
 
       {/* Drag overlay */}
       {isDragOver && (
@@ -189,9 +164,7 @@ export default function MessageInput({
             onSend()
           }}
           rows={1}
-          placeholder={
-            replyTo ? `Reply to ${replyTo.sender_name}...` : `Message as ${myName}...`
-          }
+          placeholder={`Message as ${myName}...`}
           className="flex-1 bg-transparent outline-none text-sm resize-none overflow-y-auto max-h-32 py-1"
           style={{ color: 'var(--text-primary)' }}
         />

@@ -6,7 +6,11 @@ from fastapi import HTTPException, Request
 
 
 class MemoryRateLimiter:
-    """基于内存的滑动窗口速率限制器。"""
+    """基于内存的滑动窗口速率限制器。
+
+    ⚠️ 注意：此实现是进程内内存级的，多进程部署时各进程独立计数，
+    不适合生产环境的多 worker 场景。生产环境建议改用 Redis 等共享存储。
+    """
 
     def __init__(self):
         self._requests: dict[str, list[float]] = defaultdict(list)

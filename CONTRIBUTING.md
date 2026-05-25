@@ -1,4 +1,4 @@
-# Contributing to Agent Coop
+# Contributing to AgentRoom
 
 Thank you for your interest in contributing! This guide will help you get started.
 

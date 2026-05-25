@@ -1,6 +1,6 @@
-# Agent Coop Documentation
+# AgentRoom Documentation
 
-Welcome to the Agent Coop documentation.
+Welcome to the AgentRoom documentation.
 
 ## Guides
 

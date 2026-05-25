@@ -1,21 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, Request
+from database import get_db
+from dependencies import get_current_member, get_room
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from models import Member
+from schemas import MemberDescriptionUpdate, MemberOut, MemberRoleUpdate, MemberStatsOut
 from sqlalchemy.orm import Session
 
-from database import get_db
-from models import Room, Member
-from schemas import MemberOut, MemberStatsOut, MemberDescriptionUpdate, MemberDisplayNameUpdate
-from dependencies import get_current_member
-
 router = APIRouter(prefix="/api/rooms/{room_id}/members", tags=["members"])
-
-
-def _get_room(room_id: int, db: Session) -> Room:
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=404, detail="Room not found")
-    return room
-
-
 @router.get("", response_model=list[MemberOut])
 def list_members(
     room_id: int,
@@ -23,12 +13,10 @@ def list_members(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
+    get_room(room_id, db)
     # Verify the requester is a member
     get_current_member(room_id, request, x_member_token, db)
     return db.query(Member).filter(Member.room_id == room_id).all()
-
-
 @router.delete("/{member_id}")
 def delete_member(
     room_id: int,
@@ -37,7 +25,7 @@ def delete_member(
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    _get_room(room_id, db)
+    get_room(room_id, db)
     requester = get_current_member(room_id, request, x_member_token, db)
     target = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
     if not target:
@@ -58,8 +46,6 @@ def delete_member(
     db.delete(target)
     db.commit()
     return {"ok": True}
-
-
 @router.get("/stats", response_model=list[MemberStatsOut])
 def list_member_stats(
     room_id: int,
@@ -68,12 +54,9 @@ def list_member_stats(
     db: Session = Depends(get_db),
 ):
     """Return message stats for each member in the room."""
-    _get_room(room_id, db)
-    from dependencies import get_current_member
-    get_current_member(room_id, request, x_member_token, db)
-
-    from sqlalchemy import func
+    get_room(room_id, db)
     from models import Message
+    from sqlalchemy import func
 
     stats = []
     members = db.query(Member).filter(Member.room_id == room_id).all()
@@ -91,7 +74,6 @@ def list_member_stats(
         stats.append(MemberStatsOut(
             member_id=m.id,
             name=m.name,
-            display_name=m.display_name,
             type=m.type,
             role=m.role,
             description=m.description or "",
@@ -99,8 +81,6 @@ def list_member_stats(
             last_message_at=last_msg.created_at if last_msg else None,
         ))
     return stats
-
-
 @router.get("/{member_id}/description", response_model=str)
 def get_member_description(
     room_id: int,
@@ -110,16 +90,11 @@ def get_member_description(
     db: Session = Depends(get_db),
 ):
     """Get a member's description."""
-    _get_room(room_id, db)
-    from dependencies import get_current_member
-    get_current_member(room_id, request, x_member_token, db)
-
+    get_room(room_id, db)
     member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     return member.description or ""
-
-
 @router.put("/{member_id}/description", response_model=MemberOut)
 def update_member_description(
     room_id: int,
@@ -130,8 +105,7 @@ def update_member_description(
     db: Session = Depends(get_db),
 ):
     """Update a member's description. Members can update their own; owners/admins can update anyone's."""
-    _get_room(room_id, db)
-    from dependencies import get_current_member
+    get_room(room_id, db)
     requester = get_current_member(room_id, request, x_member_token, db)
 
     member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
@@ -146,49 +120,35 @@ def update_member_description(
     db.commit()
     db.refresh(member)
     return member
-
-
-@router.get("/{member_id}/display-name", response_model=str)
-def get_member_display_name(
+@router.put("/{member_id}/role", response_model=MemberOut)
+def update_member_role(
     room_id: int,
     member_id: int,
+    data: MemberRoleUpdate,
     request: Request,
     x_member_token: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    """Get a member's display name."""
-    _get_room(room_id, db)
-    from dependencies import get_current_member
-    get_current_member(room_id, request, x_member_token, db)
-
-    member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
-    if not member:
-        raise HTTPException(status_code=404, detail="Member not found")
-    return member.display_name or ""
-
-
-@router.put("/{member_id}/display-name", response_model=MemberOut)
-def update_member_display_name(
-    room_id: int,
-    member_id: int,
-    data: MemberDisplayNameUpdate,
-    request: Request,
-    x_member_token: str = Header(default=""),
-    db: Session = Depends(get_db),
-):
-    """Update a member's display name. Members can update their own; owners/admins can update anyone's."""
-    _get_room(room_id, db)
-    from dependencies import get_current_member
+    """Update a member's role. Only owner can change roles."""
+    get_room(room_id, db)
     requester = get_current_member(room_id, request, x_member_token, db)
 
+    if requester.role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can change member roles")
+
     member = db.query(Member).filter(Member.id == member_id, Member.room_id == room_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    if requester.id != member.id and requester.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Can only update your own display name")
+    # Cannot demote the last owner
+    if member.role == "owner" and data.role != "owner":
+        owner_count = db.query(Member).filter(
+            Member.room_id == room_id, Member.role == "owner"
+        ).count()
+        if owner_count <= 1:
+            raise HTTPException(status_code=403, detail="Cannot demote the last owner")
 
-    member.display_name = data.display_name
+    member.role = data.role
     db.commit()
     db.refresh(member)
     return member

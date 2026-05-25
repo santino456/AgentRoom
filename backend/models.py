@@ -1,9 +1,14 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
-from sqlalchemy.orm import relationship
-from database import Base
-from datetime import datetime
 import enum
 import secrets
+from datetime import datetime, timezone
+
+from database import Base
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+
+def _utcnow():
+    return datetime.now(timezone.utc)
 
 
 class MemberType(str, enum.Enum):
@@ -30,7 +35,7 @@ class Room(Base):
     secret = Column(String, default=generate_room_secret, nullable=False)
     created_by_member_id = Column(Integer, ForeignKey("members.id"), nullable=True)
     announcement = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     members = relationship("Member", foreign_keys="Member.room_id", back_populates="room", cascade="all, delete-orphan")
     creator = relationship("Member", foreign_keys=[created_by_member_id])
@@ -48,9 +53,8 @@ class Member(Base):
     user_token = Column(String, nullable=True, index=True)
     role = Column(String, default="member")
     description = Column(Text, default="", nullable=False)
-    display_name = Column(String, nullable=True)
-    joined_at = Column(DateTime, default=datetime.utcnow)
-    last_active = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, default=_utcnow)
+    last_active = Column(DateTime, default=_utcnow)
 
     room = relationship("Room", foreign_keys=[room_id], back_populates="members")
     messages = relationship("Message", foreign_keys="Message.sender_id", back_populates="sender")
@@ -65,8 +69,8 @@ class Message(Base):
     content = Column(Text, nullable=False)
     to_member_id = Column(Integer, ForeignKey("members.id"), nullable=True)
     msg_type = Column(String, default=MessageType.MESSAGE)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     room = relationship("Room", back_populates="messages")
     sender = relationship("Member", foreign_keys=[sender_id], back_populates="messages")
@@ -81,7 +85,7 @@ class WebhookConfig(Base):
     events = Column(String, default="message,join")  # 逗号分隔的事件列表
     secret = Column(String, default="")  # 用于签名验证
     enabled = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
 
 class FileLock(Base):
@@ -91,7 +95,7 @@ class FileLock(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     file_path = Column(String, nullable=False)
     agent_name = Column(String, nullable=False)
-    acquired_at = Column(DateTime, default=datetime.utcnow)
+    acquired_at = Column(DateTime, default=_utcnow)
     expires_at = Column(DateTime, nullable=False)
 
 
@@ -106,7 +110,7 @@ class Attachment(Base):
     storage_path = Column(String, nullable=False)
     mime_type = Column(String, nullable=False)
     size = Column(Integer, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
 
     room = relationship("Room")
     message = relationship("Message")
@@ -119,8 +123,8 @@ class DraftMessage(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     member_id = Column(Integer, ForeignKey("members.id"), nullable=False)
     content = Column(Text, default="", nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=_utcnow)
+    updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)
 
     room = relationship("Room")
     member = relationship("Member")
@@ -133,7 +137,7 @@ class MessageRead(Base):
     room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
     member_id = Column(Integer, ForeignKey("members.id"), nullable=False)
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
-    read_at = Column(DateTime, default=datetime.utcnow)
+    read_at = Column(DateTime, default=_utcnow)
 
     room = relationship("Room")
     member = relationship("Member")
