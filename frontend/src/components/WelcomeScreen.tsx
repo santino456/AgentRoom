@@ -1,7 +1,7 @@
 import { useState } from 'react'
 
 interface WelcomeScreenProps {
-  onCreateRoom: (name: string) => Promise<void>
+  onCreateRoom: (name: string) => void
   onJoinRoom: (roomId: number, name: string, secret: string) => Promise<void>
 }
 

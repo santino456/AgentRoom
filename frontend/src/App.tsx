@@ -543,24 +543,28 @@ export default function App() {
   }
 
   // Create room
-  const createRoom = async (name?: string) => {
+  const createRoom = (name?: string) => {
     const roomName = name || prompt('Room name:')
     if (!roomName) return
-    const r = await fetch(`${API_BASE}/rooms`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: roomName }),
-      credentials: 'include',
-    })
-    const newRoom = await r.json()
-    if (!name) {
-      alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
+
+    const doCreate = async () => {
+      const r = await fetch(`${API_BASE}/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: roomName }),
+        credentials: 'include',
+      })
+      const newRoom = await r.json()
+      if (!name) {
+        alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
+      }
+      await loadRooms()
+      // Auto-select the new room
+      if (newRoom.id) {
+        setCurrentRoomId(newRoom.id)
+      }
     }
-    await loadRooms()
-    // Auto-select the new room
-    if (newRoom.id) {
-      setCurrentRoomId(newRoom.id)
-    }
+    doCreate()
   }
 
   const currentRoom = rooms.find((r) => r.id === currentRoomId)
