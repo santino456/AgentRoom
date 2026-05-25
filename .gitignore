@@ -18,7 +18,12 @@ yarn-error.log*
 *.db
 *.sqlite
 *.sqlite3
-.agent-coop/
+.agentroom/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
 
 # Environment
 .env
@@ -39,3 +44,6 @@ Thumbs.db
 # Logs
 *.log
 .claude/
+
+# PyPI
+.pypirc
