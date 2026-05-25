@@ -323,16 +323,9 @@ async def listen_websocket(
                             or (not to_name and "@all" in content.lower())
                         )
                         if is_mentioned:
-                            # 文件锁协调：短暂重试，避免因 WS 断线导致两个监听器都漏消息
-                            lock_acquired = False
-                            for _retry in range(3):
-                                if try_acquire_lock(agent_name, room_id):
-                                    lock_acquired = True
-                                    break
-                                print(f"[{agent_name}] Lock held, retry {_retry+1}/3...", flush=True)
-                                time.sleep(0.5)
-                            if not lock_acquired:
-                                print(f"[{agent_name}] Lock still held after retries, skipping (other listener should process)", flush=True)
+                            # 文件锁协调：一次尝试，避免重试导致两个监听器都退出
+                            if not try_acquire_lock(agent_name, room_id):
+                                print(f"[{agent_name}] Lock held, skipping (other listener is processing)", flush=True)
                                 continue
 
                             # 拉取上下文
