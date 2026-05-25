@@ -23,6 +23,8 @@ def get_agent_status(room_id: int, db: Session = Depends(get_db)):
     result = []
     for m in members:
         last_active = m.last_active
+        if last_active and last_active.tzinfo is None:
+            last_active = last_active.replace(tzinfo=timezone.utc)
         process_online = last_active is not None and (now - last_active) < online_threshold
         listening = manager.is_agent_connected(room_id, m.name)
         result.append({
