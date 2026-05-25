@@ -16,7 +16,25 @@ PING_TIMEOUT = 10   # seconds
 
 
 @router.websocket("/ws/{room_id}")
-async def websocket_endpoint(websocket: WebSocket, room_id: int):
+async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str = ""):
+    # Verify token before accepting connection
+    if token:
+        db = next(get_db())
+        try:
+            member = db.query(Member).filter(
+                Member.room_id == room_id,
+                Member.token == token
+            ).first()
+            if not member:
+                await websocket.close(code=1008, reason="Unauthorized")
+                return
+        finally:
+            db.close()
+    else:
+        # Reject unauthenticated connections
+        await websocket.close(code=1008, reason="Unauthorized: token required")
+        return
+
     await manager.connect(room_id, websocket)
     last_pong = asyncio.get_event_loop().time()
     try:

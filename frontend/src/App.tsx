@@ -289,7 +289,8 @@ export default function App() {
     const connect = () => {
       if (!shouldReconnect) return
       setWsStatus('connecting')
-      ws = new WebSocket(`${WS_BASE}/ws/${currentRoomId}`)
+      const tokenParam = memberToken ? `?token=${memberToken}` : ''
+      ws = new WebSocket(`${WS_BASE}/ws/${currentRoomId}${tokenParam}`)
       wsRef.current = ws
 
       ws.onopen = () => {

@@ -25,9 +25,26 @@ def verify_room_secret(room_id: int, secret: str, db: Session = Depends(get_db))
     return room
 
 
+def _extract_bearer_token(request: Request) -> str:
+    """Extract token from Authorization: Bearer <token> header."""
+    auth = request.headers.get("Authorization", "")
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return ""
+
+
 def _find_member(request: Request, x_member_token: str, room_id: int, db: Session) -> Member | None:
-    """Try all auth mechanisms: user_token cookie, member_token cookie, X-Member-Token header."""
-    # Try user_token cookie first (human users)
+    """Try all auth mechanisms: Bearer header, user_token cookie, member_token cookie, X-Member-Token header."""
+    # 1. Try Authorization: Bearer header (preferred, unified)
+    bearer_token = _extract_bearer_token(request)
+    if bearer_token:
+        member = db.query(Member).filter(
+            Member.room_id == room_id, Member.token == bearer_token
+        ).first()
+        if member:
+            return member
+
+    # 2. Try user_token cookie (human users)
     user_token = request.cookies.get("user_token")
     if user_token:
         member = db.query(Member).filter(
@@ -36,7 +53,7 @@ def _find_member(request: Request, x_member_token: str, room_id: int, db: Sessio
         if member:
             return member
 
-    # Try member_token cookie (set by join.py for browser users)
+    # 3. Try member_token cookie (set by join.py for browser users)
     member_token_cookie = request.cookies.get("member_token")
     if member_token_cookie:
         member = db.query(Member).filter(
@@ -45,7 +62,7 @@ def _find_member(request: Request, x_member_token: str, room_id: int, db: Sessio
         if member:
             return member
 
-    # Fallback to X-Member-Token header (CLI/agents)
+    # 4. Fallback to X-Member-Token header (legacy CLI/agents)
     if x_member_token:
         member = db.query(Member).filter(
             Member.room_id == room_id, Member.token == x_member_token

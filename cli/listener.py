@@ -243,7 +243,7 @@ async def listen_websocket(
         print(f"[{agent_name}] _check_missed_mentions skipped: {e}", flush=True)
 
     pending_messages = []
-    ws_url = f"{base_ws}/ws/{room_id}"
+    ws_url = f"{base_ws}/ws/{room_id}?token={token}" if token else f"{base_ws}/ws/{room_id}"
     reconnect_delay = 1.0
 
     while True:
