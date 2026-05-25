@@ -22,7 +22,7 @@ from pathlib import Path
 import websockets
 
 sys.path.insert(0, str(Path(__file__).parent))
-from config_loader import load_config, get_agent_config, get_global_config
+from config_loader import get_agent_config, get_global_config, load_config
 
 
 def _is_process_alive(pid: int) -> bool:
@@ -398,8 +398,19 @@ def main():
     parser.add_argument("--room", type=int, default=1, help="Room ID")
     parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
     parser.add_argument("--config", default="config/agents.yaml", help="Config file path (optional)")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8080", help="HTTP base URL")
-    parser.add_argument("--ws-base", default="ws://127.0.0.1:8080", help="WebSocket base URL")
+    # Try to read defaults from unified config
+    _default_http = "http://127.0.0.1:8080"
+    _default_ws = "ws://127.0.0.1:8080"
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from config import settings
+        _default_http = f"http://{settings.server.host}:{settings.server.port}"
+        _default_ws = f"ws://{settings.server.host}:{settings.server.port}"
+    except Exception:
+        pass
+
+    parser.add_argument("--base-url", default=_default_http, help="HTTP base URL")
+    parser.add_argument("--ws-base", default=_default_ws, help="WebSocket base URL")
     args = parser.parse_args()
 
     # Try to load config, but it's optional

@@ -23,8 +23,8 @@ def _message_to_dict(m, db: Session):
         "content": m.content,
         "to_name": (lambda tm: tm.name if tm else None)(db.query(Member).filter(Member.id == m.to_member_id).first()) if m.to_member_id else None,
         "msg_type": m.msg_type,
-        "created_at": m.created_at,
-        "updated_at": m.updated_at,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "updated_at": m.updated_at.isoformat() if m.updated_at else None,
         "attachments": [
             {
                 "id": a.id,

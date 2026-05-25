@@ -3,20 +3,34 @@
 AgentRoom CLI — AI Agent 协作命令行工具
 """
 
-import click
-import httpx
 import json
 import os
-import psutil
 import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
-BASE_URL = "http://127.0.0.1:8080/api"
+import click
+import httpx
+import psutil
 
 CLI_CONFIG_DIR = Path.home() / ".agentroom"
+
+
+def _get_base_url() -> str:
+    """Read base URL from config, fallback to default."""
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from config import settings
+        host = settings.server.host
+        port = settings.server.port
+        return f"http://{host}:{port}/api"
+    except Exception:
+        return "http://127.0.0.1:8080/api"
+
+
+BASE_URL = _get_base_url()
 
 
 def _config_path(agent_name: str = "default") -> Path:
@@ -43,7 +57,7 @@ def _get_member_token(room_id: int, agent_name: str = "") -> str:
 
 
 def fmt_time(iso):
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
     try:
         # 后端返回 UTC，先附加 UTC 时区，再转本地时区（UTC+8）
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
@@ -548,6 +562,133 @@ def describe(room_id, description, agent_name, secret):
         click.echo(f"   房间: {room_id}")
     else:
         click.echo(f"❌ 更新失败: {r.text}")
+
+
+
+
+# ---------- Server ----------
+
+@cli.group()
+def server():
+    """服务器管理"""
+    pass
+
+
+@server.command("start")
+@click.option("--host", default="", help="绑定主机 (覆盖配置)")
+@click.option("--port", type=int, default=0, help="绑定端口 (覆盖配置)")
+@click.option("--reload/--no-reload", default=True, help="启用自动重载 (开发模式)")
+def server_start(host, port, reload):
+    """启动 AgentRoom 服务器 (后端 + 前端静态文件)"""
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
+        from config import settings
+        bind_host = host or settings.server.host
+        bind_port = port or settings.server.port
+    except Exception:
+        bind_host = host or "127.0.0.1"
+        bind_port = port or 8080
+
+    click.echo("🚀 启动 AgentRoom 服务器...")
+    click.echo(f"   地址: http://{bind_host}:{bind_port}")
+
+    backend_dir = Path(__file__).parent.parent / "backend"
+    cmd = [
+        sys.executable, "-m", "uvicorn", "main:app",
+        "--host", bind_host,
+        "--port", str(bind_port),
+    ]
+    if reload:
+        cmd.append("--reload")
+
+    try:
+        os.chdir(backend_dir)
+        subprocess.run(cmd)
+    except KeyboardInterrupt:
+        click.echo("\n👋 服务器已停止")
+
+
+# ---------- Config ----------
+
+@cli.group()
+def config():
+    """配置管理"""
+    pass
+
+
+@config.command("init")
+@click.option("--force", is_flag=True, help="覆盖现有配置")
+def config_init(force):
+    """生成默认配置文件 ~/.agentroom/config.yaml"""
+    config_path = CLI_CONFIG_DIR / "config.yaml"
+
+    if config_path.exists() and not force:
+        click.echo(f"⚠️ 配置文件已存在: {config_path}")
+        click.echo("   使用 --force 覆盖")
+        return
+
+    default_config = """# AgentRoom 配置文件
+# 路径: ~/.agentroom/config.yaml
+# 环境变量覆盖: AGENTROOM_SERVER_PORT=9000
+
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+database:
+  url: "sqlite:///~/.agentroom/agentroom.db"
+
+cors:
+  origins:
+    - "http://localhost:8080"
+    - "http://127.0.0.1:8080"
+
+limits:
+  max_message_length: 4000
+  max_room_name_length: 50
+  max_member_name_length: 30
+  default_lock_ttl: 300
+  max_attachment_size_mb: 10
+
+logging:
+  debug: false
+  json_format: true
+
+agents:
+  - name: "Kimi-Dev"
+    aliases:
+      - "kimi"
+      - "all"
+  - name: "claude-agent"
+    aliases:
+      - "claude"
+      - "all"
+  - name: "claude-军师"
+    aliases:
+      - "军师"
+      - "all"
+"""
+    CLI_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(default_config)
+    click.echo(f"✅ 默认配置已生成: {config_path}")
+
+
+@config.command("show")
+def config_show():
+    """显示当前生效的配置"""
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from config import settings
+        click.echo("📋 当前配置:")
+        click.echo(f"   server.host: {settings.server.host}")
+        click.echo(f"   server.port: {settings.server.port}")
+        click.echo(f"   database.url: {settings.database_url}")
+        click.echo(f"   cors.origins: {settings.cors_origins}")
+        click.echo(f"   limits.max_message_length: {settings.max_message_length}")
+        click.echo(f"   logging.debug: {settings.debug}")
+    except Exception as e:
+        click.echo(f"❌ 读取配置失败: {e}")
 
 
 if __name__ == "__main__":

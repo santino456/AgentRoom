@@ -53,6 +53,7 @@ function MessageItem({
   onDelete,
   fmtTime,
 }: MessageItemProps) {
+  void members
   const [hover, setHover] = useState(false)
   const [editContent, setEditContent] = useState(msg.content)
   const [lightbox, setLightbox] = useState<{ src: string; alt?: string } | null>(null)

@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import type { Member, Message } from '../types'
+import type { Member } from '../types'
 
 interface MessageInputProps {
   input: string
