@@ -14,7 +14,7 @@ interface MessageState {
   sendMessage: (roomId: number, content: string, token?: string) => Promise<void>
 }
 
-export const useMessageStore = create<MessageState>((set, get) => ({
+export const useMessageStore = create<MessageState>((set) => ({
   messages: [],
   editingId: null,
   searchQuery: '',

@@ -29,7 +29,14 @@ export default function WelcomeScreen({ onCreateRoom, onJoinRoom }: WelcomeScree
 
   const handleJoin = async () => {
     const id = parseInt(joinRoomId)
-    if (!id || !joinName.trim()) return
+    if (isNaN(id)) {
+      setError('房间 ID 必须是数字')
+      return
+    }
+    if (!joinName.trim()) {
+      setError('请输入你的名称')
+      return
+    }
     setLoading(true)
     setError('')
     try {

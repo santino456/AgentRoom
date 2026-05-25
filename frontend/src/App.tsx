@@ -479,7 +479,7 @@ export default function App() {
       }
       const data = await res.json()
       saveToken(roomId, name.trim(), data.token)
-      showToast(`Joined as ${name.trim()}!`, 'success')
+      setToast({ message: `Joined as ${name.trim()}!`, type: 'success' })
       setCurrentRoomId(roomId)
       // Only reload members, not messages (WebSocket handles message updates)
       const memHeaders: Record<string, string> = {}
@@ -491,6 +491,7 @@ export default function App() {
       loadRooms()
     } catch (e: any) {
       showToast(e.message || 'Join failed')
+      throw e
     }
   }
 

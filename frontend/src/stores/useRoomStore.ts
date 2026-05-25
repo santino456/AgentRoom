@@ -20,7 +20,7 @@ interface RoomState {
   loadUnreadCount: (roomId: number) => Promise<void>
 }
 
-export const useRoomStore = create<RoomState>((set, get) => ({
+export const useRoomStore = create<RoomState>((set) => ({
   rooms: [],
   currentRoomId: null,
   members: [],
