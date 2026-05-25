@@ -4,6 +4,7 @@ import type { Room, Member, Message, AgentStatus, MemberStats } from './types'
 
 import ChatHeader from './components/ChatHeader'
 import MessageList from './components/MessageList'
+import WelcomeScreen from './components/WelcomeScreen'
 import MessageInput from './components/MessageInput'
 import Toast from './components/Toast'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -541,18 +542,24 @@ export default function App() {
   }
 
   // Create room
-  const createRoom = async () => {
-    const name = prompt('Room name:')
-    if (!name) return
+  const createRoom = async (name?: string) => {
+    const roomName = name || prompt('Room name:')
+    if (!roomName) return
     const r = await fetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name: roomName }),
       credentials: 'include',
     })
     const newRoom = await r.json()
-    alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
-    loadRooms()
+    if (!name) {
+      alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
+    }
+    await loadRooms()
+    // Auto-select the new room
+    if (newRoom.id) {
+      setCurrentRoomId(newRoom.id)
+    }
   }
 
   const currentRoom = rooms.find((r) => r.id === currentRoomId)
@@ -654,6 +661,13 @@ export default function App() {
         </Suspense>
 
         <main className="flex-1 flex flex-col min-w-0">
+          {rooms.length === 0 && !currentRoomId ? (
+            <WelcomeScreen
+              onCreateRoom={createRoom}
+              onJoinRoom={joinRoom}
+            />
+          ) : (
+            <>
           <ChatHeader
             roomName={currentRoom?.name || ''}
             wsStatus={wsStatus}
@@ -767,6 +781,8 @@ export default function App() {
             isUploading={isUploading}
             uploadProgress={uploadProgress}
           />
+            </>
+          )}
         </main>
 
         <Suspense fallback={null}>
