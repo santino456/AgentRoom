@@ -2,6 +2,14 @@ import secrets
 from urllib.parse import quote, unquote
 
 from database import get_db
+
+def _ensure_user_token(request, response):
+    """Return existing user_token or generate a new one and set cookie."""
+    user_token = request.cookies.get("user_token")
+    if not user_token:
+        user_token = secrets.token_urlsafe(24)
+        response.set_cookie(key="user_token", value=user_token, max_age=31536000, path="/")
+    return user_token
 from dependencies import get_current_member
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from models import Member, Room
@@ -14,22 +22,23 @@ router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 
 @router.get("", response_model=list[RoomOut])
 def list_rooms(request: Request, db: Session = Depends(get_db)):
-    """Return only rooms where the current user is a member."""
-    from sqlalchemy import select
+    """Return all rooms where the current user is a member (via user_token or member_token)."""
+    from sqlalchemy import or_, select
 
-    # Try user_token cookie first
     user_token = request.cookies.get("user_token")
-    if user_token:
-        member_rooms = select(Member.room_id).where(Member.user_token == user_token).scalar_subquery()
-        return db.query(Room).filter(Room.id.in_(member_rooms)).order_by(Room.created_at.desc()).all()
-
-    # Fallback to member_token cookie
     member_token = request.cookies.get("member_token")
-    if member_token:
-        member_rooms = select(Member.room_id).where(Member.token == member_token).scalar_subquery()
-        return db.query(Room).filter(Room.id.in_(member_rooms)).order_by(Room.created_at.desc()).all()
 
-    return []
+    conditions = []
+    if user_token:
+        conditions.append(Member.user_token == user_token)
+    if member_token:
+        conditions.append(Member.token == member_token)
+
+    if not conditions:
+        return []
+
+    member_rooms = select(Member.room_id).where(or_(*conditions)).scalar_subquery()
+    return db.query(Room).filter(Room.id.in_(member_rooms)).order_by(Room.created_at.desc()).all()
 
 
 @router.post("", response_model=RoomOut)
@@ -51,39 +60,6 @@ def create_room(
     db.add(db_room)
     db.commit()
     db.refresh(db_room)
-
-    # If creator has a user_token or member_token, auto-join them as owner
-    user_token = request.cookies.get("user_token")
-    member_token = request.cookies.get("member_token")
-    if user_token or member_token:
-        # Use member_name from cookie if available, otherwise "Owner"
-        member_name = "Owner"
-        raw_name = request.cookies.get("member_name")
-        if raw_name:
-            try:
-                member_name = unquote(raw_name)
-            except Exception:
-                member_name = raw_name
-        # Generate a fresh token for this room
-        new_token = secrets.token_urlsafe(24)
-        member = Member(
-            room_id=db_room.id,
-            name=member_name,
-            type="human",
-            token=new_token,
-            user_token=user_token,
-            role="owner",
-        )
-        db.add(member)
-        db.commit()
-        db.refresh(member)
-        db_room.created_by_member_id = member.id
-        db.commit()
-        db.refresh(db_room)
-        # Set cookies so frontend recognizes membership
-        response.set_cookie(key="member_token", value=new_token, max_age=31536000, path="/")
-        response.set_cookie(key="member_name", value=quote(member_name), max_age=31536000, path="/")
-
     return db_room
 
 

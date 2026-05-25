@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from urllib.parse import quote
 
 from database import get_db
@@ -27,16 +28,9 @@ async def join_room(
         raise HTTPException(status_code=404, detail="Room not found")
 
     user_token = request.cookies.get("user_token")
-
-    # Existing member by user_token — re-join without secret
-    if user_token:
-        existing = db.query(Member).filter(
-            Member.room_id == room_id, Member.user_token == user_token
-        ).first()
-        if existing:
-            response.set_cookie(key="member_token", value=existing.token, max_age=31536000, path="/")
-            response.set_cookie(key="member_name", value=quote(existing.name), max_age=31536000, path="/")
-            return {"ok": True, "member_id": existing.id, "token": existing.token, "name": existing.name}
+    if not user_token:
+        user_token = secrets.token_urlsafe(24)
+        response.set_cookie(key="user_token", value=user_token, max_age=31536000, path="/")
 
     # Existing member by name — re-join without secret (backward compat)
     existing_by_name = db.query(Member).filter(

@@ -544,21 +544,40 @@ export default function App() {
   }
 
   // Create room
-  const createRoom = async (name?: string) => {
-    const roomName = name || prompt('Room name:')
-    if (!roomName) return
+  const createRoom = async (roomName?: string) => {
+    const name = roomName || prompt('Room name:')
+    if (!name) return
 
     const r = await fetch(`${API_BASE}/rooms`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: roomName }),
+      body: JSON.stringify({ name }),
       credentials: 'include',
     })
     const newRoom = await r.json()
     if (!r.ok) {
       throw new Error(newRoom.detail || `Failed: ${r.status}`)
     }
-    alert(`Room "${newRoom.name}" created!\n\nID: ${newRoom.id}\nSecret: ${newRoom.secret}\n\nYou have been auto-joined as owner. Share the ID and secret with others to invite them.`)
+
+    // Auto-join if we know the user's name
+    if (memberName && newRoom.id && newRoom.secret) {
+      try {
+        const joinRes = await fetch(`${API_BASE}/rooms/${newRoom.id}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Room-Secret': newRoom.secret },
+          body: JSON.stringify({ name: memberName, type: 'human' }),
+          credentials: 'include',
+        })
+        const joinData = await joinRes.json()
+        if (joinRes.ok && joinData.token) {
+          saveToken(newRoom.id, memberName, joinData.token)
+        }
+      } catch {
+        // ignore auto-join errors
+      }
+    }
+
+    alert(`Room "${newRoom.name}" created!\n\nID: ${newRoom.id}\nSecret: ${newRoom.secret}\n\n${memberName ? 'You have been auto-joined as owner.' : 'Use Join Room to enter with your name and the secret above.'}`)
     await loadRooms()
     // Auto-select the new room
     if (newRoom.id) {
