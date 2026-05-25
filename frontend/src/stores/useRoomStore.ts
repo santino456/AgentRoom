@@ -1,18 +1,18 @@
-import { create } from 'zustand'
-import { API_BASE } from '../config'
-import type { Room, Member, AgentStatus } from '../types'
+import { create } from "zustand";
+import { API_BASE } from "../config";
+import type { Room, Member, AgentStatus } from "../types";
 
 interface RoomState {
-  rooms: Room[]
-  currentRoomId: number | null
-  members: Member[]
-  agentStatus: Record<string, AgentStatus>
-  unreadCounts: Record<number, number>
-  loadRooms: () => Promise<void>
-  selectRoom: (id: number) => void
-  loadMembers: (roomId: number) => Promise<void>
-  loadAgentStatus: (roomId: number) => Promise<void>
-  loadUnreadCount: (roomId: number) => Promise<void>
+  rooms: Room[];
+  currentRoomId: number | null;
+  members: Member[];
+  agentStatus: Record<string, AgentStatus>;
+  unreadCounts: Record<number, number>;
+  loadRooms: () => Promise<void>;
+  selectRoom: (id: number) => void;
+  loadMembers: (roomId: number) => Promise<void>;
+  loadAgentStatus: (roomId: number) => Promise<void>;
+  loadUnreadCount: (roomId: number) => Promise<void>;
 }
 
 export const useRoomStore = create<RoomState>((set) => ({
@@ -24,11 +24,11 @@ export const useRoomStore = create<RoomState>((set) => ({
 
   loadRooms: async () => {
     try {
-      const res = await fetch(`${API_BASE}/rooms`, { credentials: 'include' })
-      const data = await res.json()
-      set({ rooms: data })
+      const res = await fetch(`${API_BASE}/rooms`, { credentials: "include" });
+      const data = await res.json();
+      set({ rooms: data });
     } catch (e) {
-      console.error('Failed to load rooms:', e)
+      console.error("Failed to load rooms:", e);
     }
   },
 
@@ -36,33 +36,43 @@ export const useRoomStore = create<RoomState>((set) => ({
 
   loadMembers: async (roomId) => {
     try {
-      const res = await fetch(`${API_BASE}/rooms/${roomId}/members`, { credentials: 'include' })
-      const data = await res.json()
-      set({ members: data })
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/members`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      set({ members: data });
     } catch (e) {
-      console.error('Failed to load members:', e)
+      console.error("Failed to load members:", e);
     }
   },
 
   loadAgentStatus: async (roomId) => {
     try {
-      const res = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, { credentials: 'include' })
-      const data = await res.json()
-      const statusMap: Record<string, AgentStatus> = {}
-      data.forEach((s: any) => { statusMap[s.name] = s })
-      set({ agentStatus: statusMap })
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/agent-status`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      const statusMap: Record<string, AgentStatus> = {};
+      data.forEach((s: any) => {
+        statusMap[s.name] = s;
+      });
+      set({ agentStatus: statusMap });
     } catch (e) {
-      console.error('Failed to load agent status:', e)
+      console.error("Failed to load agent status:", e);
     }
   },
 
   loadUnreadCount: async (roomId) => {
     try {
-      const res = await fetch(`${API_BASE}/rooms/${roomId}/unread-count`, { credentials: 'include' })
-      const data = await res.json()
-      set((state) => ({ unreadCounts: { ...state.unreadCounts, [roomId]: data.count } }))
+      const res = await fetch(`${API_BASE}/rooms/${roomId}/unread-count`, {
+        credentials: "include",
+      });
+      const data = await res.json();
+      set((state) => ({
+        unreadCounts: { ...state.unreadCounts, [roomId]: data.count },
+      }));
     } catch (e) {
       // Silently fail for unread count
     }
   },
-}))
+}));

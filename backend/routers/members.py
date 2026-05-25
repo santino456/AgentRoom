@@ -15,8 +15,14 @@ def list_members(
 ):
     get_room(room_id, db)
     # Verify the requester is a member
-    get_current_member(room_id, request, x_member_token, db)
-    return db.query(Member).filter(Member.room_id == room_id).all()
+    requester = get_current_member(room_id, request, x_member_token, db)
+    members = db.query(Member).filter(Member.room_id == room_id).all()
+    result = []
+    for m in members:
+        out = MemberOut.model_validate(m)
+        out.is_me = m.id == requester.id
+        result.append(out)
+    return result
 @router.delete("/{member_id}")
 def delete_member(
     room_id: int,

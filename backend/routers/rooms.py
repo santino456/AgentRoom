@@ -1,7 +1,13 @@
 import secrets
-from urllib.parse import quote, unquote
 
 from database import get_db
+from dependencies import get_current_member
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
+from models import Member, Room
+from rate_limiter import limiter
+from schemas import RoomAnnouncementUpdate, RoomCreate, RoomOut, RoomUpdate
+from sqlalchemy.orm import Session
+
 
 def _ensure_user_token(request, response):
     """Return existing user_token or generate a new one and set cookie."""
@@ -10,12 +16,7 @@ def _ensure_user_token(request, response):
         user_token = secrets.token_urlsafe(24)
         response.set_cookie(key="user_token", value=user_token, max_age=31536000, path="/")
     return user_token
-from dependencies import get_current_member
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
-from models import Member, Room
-from rate_limiter import limiter
-from schemas import RoomAnnouncementUpdate, RoomCreate, RoomOut, RoomUpdate
-from sqlalchemy.orm import Session
+
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
 

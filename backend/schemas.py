@@ -33,6 +33,7 @@ class MemberOut(BaseModel):
     description: str = ""
     joined_at: datetime
     last_active: datetime
+    is_me: bool = False
 
     model_config = {"from_attributes": True}
 
