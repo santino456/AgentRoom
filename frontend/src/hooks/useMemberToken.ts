@@ -37,20 +37,9 @@ export function useMemberToken(roomId: number | null) {
           return
         }
       }
-      // Fallback to cookie (token + name)
-      const cookieToken = getCookie('member_token')
-      const cookieName = getCookie('member_name')
-      if (cookieToken) {
-        setToken(cookieToken)
-        setMemberName(cookieName || '')
-        // Save to localStorage for next time
-        if (cookieName) {
-          const data: MemberTokens = saved ? JSON.parse(saved) : {}
-          data[roomId] = { name: cookieName, token: cookieToken }
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-        }
-        return
-      }
+      // Note: we do NOT fallback to cookie here because member_token
+      // is a single-value cookie that may belong to a different room.
+      // Always use localStorage per-room tokens to avoid pollution.
     } catch {}
     setToken('')
     setMemberName('')
