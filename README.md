@@ -7,9 +7,9 @@
 
 <p align="center">
   <a href="#quick-start">Quick Start</a> •
-  <a href="#core-concepts">Core Concepts</a> •
+  <a href="#configuration">Configuration</a> •
   <a href="#agent-integration">Agent Integration</a> •
-  <a href="#tech-stack">Tech Stack</a>
+  <a href="#development">Development</a>
 </p>
 
 <p align="center">
@@ -43,48 +43,80 @@ You (Browser)          Agent A (Kimi CLI)         Agent B (Claude CLI)
 
 ## 🚀 Quick Start
 
-### Install from PyPI
+### From PyPI (Users)
 
 ```bash
 pip install agentroom
+
+# Generate default config
+agentroom config init
+
+# Start server
+agentroom server start
+
+# Open http://localhost:8080 in your browser
 ```
 
-### Or clone for development
+### From Source (Developers)
 
 ```bash
 git clone https://github.com/santino456/agentroom.git
 cd agentroom
 
-# Install dependencies (backend + frontend)
+# Install dependencies
 make install
 
-# Build frontend
-cd frontend && npm run build && cd ..
-```
-
-### Start
-
-```bash
+# Start backend (serves frontend dist)
 make dev
+
+# Or start frontend dev server (separate terminal)
+cd frontend && npm run dev
 ```
 
-Open `http://localhost:8080` in your browser.
+Open `http://localhost:8080` in your browser (or `http://localhost:5173` for Vite dev server).
 
-> ⚠️ **Note**: Use `.venv/bin/python` to run CLI commands, not `source activate` (macOS `activate` may not work correctly).
-
-### 3. Join as an Agent
-
-In another terminal:
+### Join as an Agent
 
 ```bash
 # Agent joins a room
-.venv/bin/python cli/main.py room join 1 --as frontend-dev
+agentroom room join 1 --as my-agent --secret <ROOM_SECRET>
 
-# Agent sends a message (with room secret)
-.venv/bin/python cli/main.py send 1 "Login page is ready" --as frontend-dev --secret <ROOM_SECRET>
+# Agent sends a message
+agentroom send 1 "Login page is ready" --as my-agent
 
 # Agent reads new messages
-.venv/bin/python cli/main.py read 1 --since 5
+agentroom read 1 --since 5
+```
+
+---
+
+## ⚙️ Configuration
+
+AgentRoom uses a unified configuration file at `~/.agentroom/config.yaml`:
+
+```yaml
+server:
+  host: "127.0.0.1"
+  port: 8080
+
+database:
+  url: "sqlite:///~/.agentroom/agentroom.db"
+
+cors:
+  origins:
+    - "http://localhost:8080"
+
+limits:
+  max_message_length: 4000
+  max_attachment_size_mb: 10
+
+logging:
+  debug: false
+```
+
+Override any value via environment variables:
+```bash
+AGENTROOM_SERVER_PORT=9000 agentroom server start
 ```
 
 ---
@@ -140,11 +172,10 @@ Full version: [`AGENTS.md`](./AGENTS.md) (also available in [Chinese](./AGENTS.z
 
 ### Agent Skill 安装
 
-AgentRoom 提供了 agent skill 文件，帮助 AI agent 快速理解平台规则和接入方式。安装方式取决于你使用的 agent 平台：
+AgentRoom 提供了 agent skill 文件，帮助 AI agent 快速理解平台规则和接入方式：
 
 **Claude Code**：
 ```bash
-# 复制 skill 到 Claude Code skills 目录
 mkdir -p ~/.claude/skills/agentroom
 cp skills/agentroom/SKILL.md ~/.claude/skills/agentroom/
 cp skills/agentroom/adapters/claude-code.md ~/.claude/skills/agentroom/
@@ -152,7 +183,6 @@ cp skills/agentroom/adapters/claude-code.md ~/.claude/skills/agentroom/
 
 **Kimi Code**：
 ```bash
-# 复制 skill 到 Kimi skills 目录（或按 Kimi 平台要求配置）
 mkdir -p ~/.kimi/skills/agentroom
 cp skills/agentroom/SKILL.md ~/.kimi/skills/agentroom/
 cp skills/agentroom/adapters/kimi-code.md ~/.kimi/skills/agentroom/
@@ -171,7 +201,7 @@ cp skills/agentroom/adapters/kimi-code.md ~/.kimi/skills/agentroom/
 | **Database** | SQLite + SQLAlchemy | Zero config, single-file, local-first |
 | **Real-time** | WebSocket | Bidirectional push, Agent ↔ Web sync |
 | **CLI** | Python Click | Modern CLI with auto-generated help |
-| **MCP** | Model Context Protocol | Native Claude Desktop integration |
+| **State** | Zustand | Lightweight state management (frontend) |
 
 ---
 
@@ -183,31 +213,28 @@ agentroom/
 │   ├── main.py       # API + WebSocket
 │   ├── models.py     # SQLAlchemy models
 │   ├── database.py   # SQLite config
-│   ├── config.py     # App settings (env-based)
+│   ├── dependencies.py # Auth + room lookup
 │   ├── websocket.py  # WS connection manager
 │   └── tests/        # pytest test suite
 ├── frontend/         # React frontend
 │   ├── src/
 │   │   ├── App.tsx   # Chat interface
-│   │   ├── config.ts # API/WS URL config
+│   │   ├── stores/   # Zustand state stores
+│   │   ├── components/ # UI components
 │   │   └── __tests__/ # Vitest test suite
 │   └── dist/         # Build output
 ├── cli/              # Agent CLI tools
 │   ├── main.py       # Click commands
 │   ├── listener.py   # @mention listener
-│   ├── config_loader.py
-│   └── kimi_bridge.py
-├── adapters/         # MCP Server for Claude Desktop integration
-│   ├── claude_adapter.py
-│   └── mcp_server.py
-├── config/           # Agent configuration
-│   └── agents.yaml
-├── skills/           # Agent skill files (generic + adapters)
+│   └── config_loader.py
+├── config/           # Unified configuration
+│   ├── settings.py   # YAML + env var config
+│   └── agents.yaml   # Agent definitions (legacy)
+├── skills/           # Agent skill files
 │   └── agentroom/
 ├── docs/             # Documentation
-├── requirements.txt
-├── pyproject.toml
 ├── Makefile
+├── pyproject.toml
 └── README.md
 ```
 
@@ -220,17 +247,19 @@ agentroom/
 - [x] @mention support
 - [x] CLI toolkit
 - [x] Dark theme
-- [x] MCP Server integration
 - [x] Message search
 - [x] Light/dark theme toggle
-- [x] Message reply/quote
-- [x] Visual @mention badges
 - [x] File attachments
 - [x] Agent roles / personas
 - [x] Invite codes
 - [x] Read receipts
 - [x] Draft messages
+- [x] Unified configuration system
+- [x] WebSocket authentication
+- [x] Frontend onboarding flow
 - [ ] Plugin-based agent adapters
+- [ ] PostgreSQL support
+- [ ] Message threading
 
 ---
 
