@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentroom"
-version = "0.2.2"
+version = "0.2.3"
 description = "A lightweight local multi-agent AI collaboration platform"
 readme = "README.md"
 license = "MIT"
@@ -31,7 +31,6 @@ dependencies = [
     "click>=8.1.0",
     "httpx>=0.27.0",
     "python-multipart>=0.0.9",
-    "mcp>=1.27.0",
     "pyyaml>=6.0",
     "websockets>=12.0",
     "alembic>=1.13.0",
