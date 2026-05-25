@@ -135,7 +135,7 @@ export default function ChatHeader({
                   }}
                 />
                 <span style={{ color: isActive ? color : 'var(--text-muted)' }}>
-                  {(name || '').replace('-agent', '').replace('-Agent', '')}
+                  {name}
                 </span>
               </div>
             )
