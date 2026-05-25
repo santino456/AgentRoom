@@ -591,20 +591,13 @@ export default function App() {
   const canGenerateInvite = myRole === 'owner' || myRole === 'admin'
 
   const generateInvite = async () => {
-    if (!currentRoomId) return
+    if (!currentRoom) return
+    const text = `Room: ${currentRoom.name}\nID: ${currentRoom.id}\nSecret: ${currentRoom.secret}`
     try {
-      const headers: Record<string, string> = {}
-      if (memberToken) headers['X-Member-Token'] = memberToken
-      const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/invite`, { credentials: 'include', headers })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.detail || 'Failed to generate invite')
-      }
-      const data = await res.json()
-      await navigator.clipboard.writeText(data.invite_url)
-      showToast('Invite link copied to clipboard!', 'success')
-    } catch (e: any) {
-      showToast(e.message || 'Failed to generate invite')
+      await navigator.clipboard.writeText(text)
+      showToast('Room ID & Secret copied to clipboard!', 'success')
+    } catch {
+      showToast('Failed to copy')
     }
   }
 
