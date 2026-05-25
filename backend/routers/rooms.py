@@ -1,6 +1,9 @@
+import secrets
+from urllib.parse import unquote
+
 from database import get_db
 from dependencies import get_current_member
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from models import Member, Room
 from rate_limiter import limiter
 from schemas import RoomAnnouncementUpdate, RoomCreate, RoomOut, RoomUpdate
@@ -33,6 +36,7 @@ def list_rooms(request: Request, db: Session = Depends(get_db)):
 def create_room(
     room: RoomCreate,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     client_ip = request.client.host if request.client else "unknown"
@@ -52,11 +56,21 @@ def create_room(
     user_token = request.cookies.get("user_token")
     member_token = request.cookies.get("member_token")
     if user_token or member_token:
+        # Use member_name from cookie if available, otherwise "Owner"
+        member_name = "Owner"
+        raw_name = request.cookies.get("member_name")
+        if raw_name:
+            try:
+                member_name = unquote(raw_name)
+            except Exception:
+                member_name = raw_name
+        # Generate a fresh token for this room
+        new_token = secrets.token_urlsafe(24)
         member = Member(
             room_id=db_room.id,
-            name="Owner",
+            name=member_name,
             type="human",
-            token=member_token or "",
+            token=new_token,
             user_token=user_token,
             role="owner",
         )
@@ -66,6 +80,9 @@ def create_room(
         db_room.created_by_member_id = member.id
         db.commit()
         db.refresh(db_room)
+        # Set cookies so frontend recognizes membership
+        response.set_cookie(key="member_token", value=new_token, max_age=31536000, path="/")
+        response.set_cookie(key="member_name", value=member_name, max_age=31536000, path="/")
 
     return db_room
 

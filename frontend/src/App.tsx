@@ -558,9 +558,7 @@ export default function App() {
     if (!r.ok) {
       throw new Error(newRoom.detail || `Failed: ${r.status}`)
     }
-    if (!name) {
-      alert(`Room created! Secret: ${newRoom.secret}\nSave it, you'll need it to send messages.`)
-    }
+    alert(`Room "${newRoom.name}" created!\n\nID: ${newRoom.id}\nSecret: ${newRoom.secret}\n\nYou have been auto-joined as owner. Share the ID and secret with others to invite them.`)
     await loadRooms()
     // Auto-select the new room
     if (newRoom.id) {
