@@ -1,5 +1,5 @@
 import secrets
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from database import get_db
 from dependencies import get_current_member
@@ -82,7 +82,7 @@ def create_room(
         db.refresh(db_room)
         # Set cookies so frontend recognizes membership
         response.set_cookie(key="member_token", value=new_token, max_age=31536000, path="/")
-        response.set_cookie(key="member_name", value=member_name, max_age=31536000, path="/")
+        response.set_cookie(key="member_name", value=quote(member_name), max_age=31536000, path="/")
 
     return db_room
 
