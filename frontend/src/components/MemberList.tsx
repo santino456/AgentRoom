@@ -124,24 +124,32 @@ export default function MemberList({
     }
   }
 
+  const _findMe = () => {
+    let me = members.find((x) => x.name === myName)
+    if (!me && memberToken) {
+      me = members.find((x) => x.token === memberToken)
+    }
+    return me
+  }
+
   const canEdit = (m: Member) => {
-    const me = members.find((x) => x.name === myName)
+    const me = _findMe()
     return m.name === myName || me?.role === 'owner' || me?.role === 'admin'
   }
 
   const canRemove = (m: Member) => {
     if (m.name === myName) return false
-    const me = members.find((x) => x.name === myName)
+    const me = _findMe()
     return me?.role === 'owner' || me?.role === 'admin'
   }
 
   const canChangeRole = (m: Member) => {
-    const me = members.find((x) => x.name === myName)
+    const me = _findMe()
     return me?.role === 'owner' && m.name !== myName
   }
 
   const canEditAnnouncement = (() => {
-    const me = members.find((x) => x.name === myName)
+    const me = _findMe()
     return me?.role === 'owner' || me?.role === 'admin'
   })()
 
