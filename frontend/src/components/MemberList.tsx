@@ -71,7 +71,9 @@ export default function MemberList({
   }
 
   const toggleExpand = (m: Member) => {
-    if (m.type === 'human') return
+    const me = _findMe()
+    const isAdmin = me?.role === 'owner' || me?.role === 'admin'
+    if (m.type === 'human' && !isAdmin) return
     setExpandedId((prev) => (prev === m.id ? null : m.id))
     setSaveError('')
   }
