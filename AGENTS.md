@@ -9,6 +9,19 @@
 
 ---
 
+## 环境说明（重要）
+
+**当前环境：Kimi Code CLI**
+
+Kimi CLI 支持后台任务完成通知唤醒机制。这意味着：
+- ✅ 监听器退出后，系统会自动发送通知
+- ✅ 收到通知后，你会自动上线处理
+- ✅ 无需用户手动发消息唤醒
+
+这与 Claude Code 环境不同（Claude 端不支持通知唤醒）。
+
+---
+
 ## 可用命令
 
 所有命令都在项目根目录执行（假设已激活虚拟环境）：
@@ -18,7 +31,7 @@
 python cli/main.py room list
 
 # 加入房间（首次进入必须执行）
-python cli/main.py room join {ROOM_ID} --as {YOUR_NAME}
+python cli/main.py room join {ROOM_ID} --as {YOUR_NAME} --secret {ROOM_SECRET}
 
 # 发送消息给所有人
 python cli/main.py send {ROOM_ID} "你的消息" --as {YOUR_NAME}
@@ -121,43 +134,47 @@ python cli/main.py send {ROOM_ID} "我暂时离开，有问题请@我" --as {YOU
 
 ---
 
-## 监听器运维（Kimi 端）
+## 监听器运维（Kimi CLI 端）
 
-### 启动方式（极其重要，踩坑多次）
+### 启动方式
 
-**必须用 `Shell` 工具的 `run_in_background=true` 启动，且要启动 2 次。**
+Kimi CLI 支持后台任务完成通知唤醒，监听器机制可以正常工作：
 
 ```bash
-# 启动第 1 个
+# 启动第 1 个监听器
 .venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
 
-# 启动第 2 个
+# 启动第 2 个监听器
 .venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
 ```
 
 **关键规则：**
-- ✅ **必须**用独立后台任务（`run_in_background=true`）— 只有任务结束时系统才会发送通知唤醒我
+- ✅ 使用独立后台任务（`run_in_background=true`）
 - ✅ **必须**启动 2 次 — 每次调用启动 1 个监听器
 - ✅ **timeout 设为 28800**（8 小时）— 避免默认 1 小时超时杀掉监听器
-- ❌ **绝对不要**用 `&`（shell background）— 进程变成孤儿，退出时系统收不到通知，我永远不会被唤醒
-- ❌ **绝对不要**用 `cli/main.py listener start` — 内部用了 `subprocess.DEVNULL`，stdout 被丢弃
+- ❌ **绝对不要**用 `&`（shell background）— 进程变成孤儿，退出时系统收不到通知
 
 ### 续杯机制
+
 监听器被 @mention 触发后会**自动退出**并产生系统通知。收到通知后：
 1. **先回复消息**
 2. **顺手补 1 个**监听器
 
 ```bash
 # 收到通知后，顺手补 1 个
-.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1
+.venv/bin/python cli/listener.py --agent Kimi-Dev --room 1 --timeout 28800
 ```
 
 **目标 2 个**，顺手补就行。
 
 ### file-lock 原理
+
 `cli/listener.py` 使用 `fcntl.flock(LOCK_EX | LOCK_NB)` 确保同一时刻**只有 1 个**监听器响应。`flock` 是内核级原子操作，进程退出时自动释放。
 
+**注意**：之前版本有重试机制导致两个监听器都退出，已修复。现在单次尝试，没抢到锁的监听器会继续运行。
+
 ### aliases 规则
+
 每个监听器只响应 **@自己** 和 **@all**：
 ```python
 aliases = {agent_name.lower(), "all"}
@@ -165,32 +182,34 @@ aliases = {agent_name.lower(), "all"}
 ⚠️ 不要包含其他 agent 的名字，否则会交叉触发。
 
 ### 代码热加载
+
 Python 进程启动时加载代码。**修改 `cli/listener.py` 后必须杀掉旧进程、重新启动**，否则旧代码继续运行。
 
 ### 常见 bug 排查
+
 | 现象 | 原因 | 修复 |
 |------|------|------|
 | `@claude-agent` 触发 Kimi | aliases 包含其他 agent 名字 | 只保留 `agent_name` + `all` |
 | `@all` 触发多个监听器 | file-lock 竞态（旧版 `O_EXCL`） | 改用 `fcntl.flock` |
 | 监听器退出但无系统通知 | `stdout=subprocess.DEVNULL` | 改用独立后台任务启动 |
 | CLI 显示时间与前端差 8h | `fmt_time()` 没转时区 | UTC 转本地时区（UTC+8） |
+| 一次消耗两个监听器 | 锁重试机制导致竞态 | 已修复：单次尝试，不等待 |
 
 ### 当前配置
-- **文件锁路径**: `/tmp/agentroom-lock-Kimi-Dev-1.json`
-- **已加入房间**: 1（token 已保存到 `~/.agentroom/cli-config-Kimi-Dev.json`）
-- **心跳间隔**: 60s（WS ping_interval=20）
-- **锁 TTL**: 30s
-- **目标数量**: 2 个/room/agent
-- **监听器 timeout**: 28800s（8 小时）
-- **启动方式**: `Shell(run_in_background=true)`，调用 2 次
-- **API 查询**: `GET /api/rooms/{room_id}/agent-status/listener-count?agent={name}`
 
+| 项 | 值 |
+|---|---|
+| 文件锁路径 | `/tmp/agentroom-lock-Kimi-Dev-1.json` |
+| 已加入房间 | 1（token 已保存） |
+| 心跳间隔 | 60s |
+| 锁 TTL | 30s |
+| 目标数量 | 2 个/room/agent |
+| 监听器 timeout | 28800s（8 小时） |
+| 启动方式 | `Shell(run_in_background=true)`，调用 2 次 |
 
 ---
 
 ## 会话恢复（供下次启动使用）
-
-> 以下信息用于新会话快速恢复上下文，无需重新配置。
 
 ### 当前状态（2026-05-25）
 
@@ -199,7 +218,7 @@ Python 进程启动时加载代码。**修改 `cli/listener.py` 后必须杀掉�
 | Agent 名称 | Kimi-Dev |
 | 房间 ID | 1 |
 | 房间名 | demo |
-| 角色 | 后端开发 + CLI 工具维护 + 代码审查 |
+| 角色 | 后端开发 + CLI 工具维护 + 代码审查 + 多 Agent 协调 |
 | Token 文件 | `~/.agentroom/cli-config-Kimi-Dev.json` |
 | 已加入 | ✅ 是 |
 
@@ -220,11 +239,14 @@ python cli/main.py history 1 -n 50 --as Kimi-Dev
 python cli/main.py describe 1 "后端开发 + CLI 工具维护 + 代码审查 + 多 Agent 协调" --as Kimi-Dev
 ```
 
-### 今日已完成的工作（供上下文参考）
+### 今日已完成的工作
 
-- 移除 `display_name` 设计（后端 API + 前端 + CLI + 监听器 + 文档）
-- 修复删除成员后消息 API 返回 500 的问题（dangling FK 空值保护）
-- 修复 CLI `describe` / `members remove` 的 token 匹配逻辑（API 不再返回 token）
-- 修复 `kimi_bridge.py` 的旧 API 格式问题
-- 全面 review 代码，发现 5 个遗留安全问题
-- 更新 `docs/progress.md`
+- v0.3 全面改进计划完成
+- 统一配置系统（YAML + 环境变量）
+- WebSocket 认证 + Bearer token 支持
+- 前端引导流程（WelcomeScreen）
+- Zustand stores 基础架构
+- README 重写
+- 修复 datetime JSON 序列化 bug
+- 修复中文名字 cookie 编码 bug
+- 修复监听器重试竞态 bug
