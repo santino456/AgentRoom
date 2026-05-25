@@ -63,13 +63,13 @@
 | Agent detail panel (role/description/stats) | Done | Claude-Agent |
 | Agent role tags in MemberList | Done | Claude-Agent |
 
-## Phase 5: Feature Expansion (In Progress)
+## Phase 5: Feature Expansion (Completed)
 
 | Item | Status | Commit |
 |------|--------|--------|
 | Agent adapter plugin system | Done | Kimi-Dev |
-| Message search backend (FTS5) | Pending | |
-| File attachments | Partial | Kimi-Agent |
+| Message search backend (FTS5) | Done | Kimi-Dev |
+| File attachments | Done | Kimi-Agent |
 | Threaded replies | Pending | |
 | Agent persona (description + role) | Done | Kimi-Agent + Claude-Agent |
 | Member stats API (msg count, last active) | Done | Kimi-Agent |
@@ -82,7 +82,28 @@
 | SKILL.md `members rename` removal | Done | Kimi-Dev |
 | Full codebase review (3 bugs fixed, 5 issues identified) | Done | Kimi-Dev |
 
-## Phase 6: Production Readiness (Pending)
+## Phase 6: v0.3 Infrastructure Overhaul (Completed — 2026-05-25)
+
+| Item | Status | Commit |
+|------|--------|--------|
+| Unified config system (YAML + env vars) | Done | Kimi-Dev |
+| CLI `server start` command | Done | Kimi-Dev |
+| CLI `config init/show` commands | Done | Kimi-Dev |
+| WebSocket authentication (token required) | Done | Kimi-Dev |
+| Bearer token support (`Authorization: Bearer`) | Done | Kimi-Dev |
+| Frontend onboarding flow (WelcomeScreen) | Done | Kimi-Dev |
+| Zustand store foundation | Done | Kimi-Dev |
+| README rewrite (remove MCP/adapters, add config docs) | Done | Kimi-Dev |
+| Fix datetime JSON serialization bug | Done | Kimi-Dev |
+| Fix Chinese name cookie encoding bug | Done | Kimi-Dev |
+| Fix listener double-exit race condition | Done | Kimi-Dev |
+| CORS dev mode auto-widen | Done | Kimi-Dev |
+| Port alignment (all to 8080) | Done | Kimi-Dev |
+| PyPI release workflow (Trusted Publisher) | Done | Kimi-Dev |
+
+**Tests:** Backend 22/22 passing, Frontend 14/14 passing. Ruff 0 errors.
+
+## Phase 7: Production Readiness (Pending)
 
 | Item | Status |
 |------|--------|
@@ -90,30 +111,33 @@
 | PostgreSQL support | Pending |
 | Monitoring / Prometheus metrics | Pending |
 | One-click deploy (Railway/Fly.io) | Pending |
+| App.tsx Zustand full migration | Pending |
+| Test coverage: backend 40+, frontend 30+ | Pending |
+| Message soft delete | Pending |
 
 ## Technical Debt
 
-| Item | Priority | Notes |
-|------|----------|-------|
-| Agent token isolation | High | Current dev mode trusts all agents on same machine. Need container-level isolation or encrypted token storage before production. |
-| WebSocket authentication | High | Anyone can connect to any room's WebSocket without auth. Must add token validation on WS handshake. |
-| Message sender verification | High | `delete_message` and `update_message` do not verify the sender identity. Anyone can delete/edit any message. |
-| Room creation unauthenticated | Medium | `create_room` allows anyone to create rooms without auth. |
-| Dangling foreign keys on member deletion | Medium | Deleting a member leaves `sender_id` / `to_member_id` FKs in messages pointing to non-existent members. Added null-guard in `_message_to_dict`, but root cause not fixed. |
-| Room cascade delete risk | Medium | `Room.members` has `cascade="all, delete-orphan"`. Could cause unexpected cascading behavior. |
-| Chunk size warning | Low | Frontend JS bundle ~1MB, could benefit from code splitting. |
-| Backend stability | Medium | Service experienced restart loops (WS 1012). Root cause investigation pending. |
-| Theme background depth | Low | User requested richer thematic visuals (SVG patterns/image assets). |
-| Message scroll flickering | Low | Partially mitigated, may need further virtualizer tuning. |
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| WebSocket authentication | High | ✅ Done | Token validation on WS handshake implemented |
+| Message sender verification | High | ✅ Done | `update_message`/`delete_message` now verify sender |
+| Unified configuration system | High | ✅ Done | YAML + env var based config |
+| Webhook auth | Medium | ✅ Done | All webhook endpoints now require member auth |
+| Agent token isolation | High | Pending | Current dev mode trusts all agents on same machine. Need container-level isolation or encrypted token storage before production. |
+| Room creation unauthenticated | Medium | Pending | `create_room` allows anyone to create rooms without auth. |
+| Dangling foreign keys on member deletion | Medium | Partial | Null-guard added in `_message_to_dict`, but root cause not fixed. |
+| Room cascade delete risk | Medium | Pending | `Room.members` has `cascade="all, delete-orphan"`. Could cause unexpected cascading behavior. |
+| Chunk size warning | Low | Pending | Frontend JS bundle ~1MB, could benefit from code splitting. |
+| Backend stability | Medium | Pending | Service experienced restart loops (WS 1012). Root cause investigation pending. |
+| Theme background depth | Low | Pending | User requested richer thematic visuals (SVG patterns/image assets). |
+| Message scroll flickering | Low | Pending | Partially mitigated, may need further virtualizer tuning. |
 
 ## Current Team
 
 | Agent | Role | Responsibilities |
 |-------|------|------------------|
-| **Kimi-Dev** | Backend Dev + CLI + Review | Backend APIs, CLI tools, code review, bug fixes, multi-agent coordination |
-| **Kimi-Agent** | Backend Dev + CLI (legacy) | Original backend/CLI implementation |
-| **Claude-Agent** | Frontend Dev | React/TS UI, component design, UX polish |
-| **claude-军师** | Architect | Architecture design, tech choices, code review (read-only) |
+| **Kimi-Dev** | Backend Dev + CLI + Review + Coordination | Backend APIs, CLI tools, code review, bug fixes, multi-agent coordination |
+| **claude-agent** | Frontend Dev | React/TS UI, component design, UX polish |
 | **金角大王** | PM / Human | Product decisions, testing, feedback |
 
 ## 同步机制

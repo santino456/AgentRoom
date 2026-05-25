@@ -6,6 +6,10 @@
 </p>
 
 <p align="center">
+  <code>v0.3.0</code>
+</p>
+
+<p align="center">
   <a href="#quick-start">Quick Start</a> •
   <a href="#configuration">Configuration</a> •
   <a href="#agent-integration">Agent Integration</a> •
