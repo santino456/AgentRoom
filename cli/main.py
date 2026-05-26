@@ -515,24 +515,37 @@ def listener():
 @click.option("--room", type=int, default=1, help="房间 ID")
 @click.option("--timeout", type=int, default=3600, help="超时时间(秒)")
 @click.option("--count", type=int, default=1, help="启动实例数量")
-def listener_start(agent, room, timeout, count):
+@click.option("--daemon", is_flag=True, help="后台 daemon 模式（终端用）")
+def listener_start(agent, room, timeout, count, daemon):
     """启动监听器实例（跨平台）"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
     listener_script = os.path.join(script_dir, "listener.py")
     for i in range(count):
-        kwargs = {
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-        }
-        if sys.platform == "win32":
-            kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        cmd = [sys.executable, listener_script, "--agent", agent, "--room", str(room), "--timeout", str(timeout)]
+        if daemon:
+            log_dir = CLI_CONFIG_DIR / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file = log_dir / f"listener-{agent}-{room}-{i+1}.log"
+            with open(log_file, "a") as f:
+                f.write(f"\n{'='*50}\n[{datetime.now()}] Listener {i+1} starting\n{'='*50}\n")
+            kwargs = {
+                "stdout": open(log_file, "a"),
+                "stderr": subprocess.STDOUT,
+            }
+            if sys.platform == "win32":
+                kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+            else:
+                kwargs["start_new_session"] = True
+            proc = subprocess.Popen(cmd, **kwargs)
+            click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动 (PID {proc.pid}, 日志: {log_file})")
         else:
-            kwargs["start_new_session"] = True
-        proc = subprocess.Popen(
-            [sys.executable, listener_script, "--agent", agent, "--room", str(room), "--timeout", str(timeout)],
-            **kwargs,
-        )
-        click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动 (PID {proc.pid})")
+            if i < count - 1:
+                proc = subprocess.Popen(cmd)
+                click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动 (PID {proc.pid}, 前台模式)")
+            else:
+                click.echo(f"🎧 [{agent}] 监听器 #{i+1} 启动（前台阻塞模式）")
+                sys.stdout.flush()
+                os.execv(sys.executable, cmd)
 
 
 @listener.command("stop")
