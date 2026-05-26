@@ -389,7 +389,7 @@ export default function App() {
           }
           // Ignore ping/pong/heartbeat and malformed messages
           if (data.type === "ping") {
-            ws.send("pong");
+            ws?.send("pong");
             return;
           }
           if (

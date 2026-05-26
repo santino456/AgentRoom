@@ -27,6 +27,7 @@ export default function Sidebar({
   onCreateRoom,
   onJoinRoom,
   onShowAgents,
+  onClose,
 }: SidebarProps) {
   const [joinName, setJoinName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
