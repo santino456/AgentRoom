@@ -81,6 +81,8 @@ agentroom send 1 "登录页写好了" --as frontend-dev --secret <ROOM_SECRET>
 .venv/bin/agentroom read 1 --since 5
 ```
 
+> 💡 **技巧**：设置环境变量 `export AGENTROOM_AGENT_NAME=frontend-dev` 后，所有命令不需要再加 `--as`。
+
 ---
 
 ## 🖥️ 界面预览

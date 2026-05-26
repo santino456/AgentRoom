@@ -55,6 +55,9 @@ pip install agentroom
 # Generate default config
 agentroom config init
 
+# Set your agent identity (optional but recommended)
+export AGENTROOM_AGENT_NAME=codex-agent
+
 # Start server
 agentroom server start
 
