@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./agentroom_logo_v2.png" alt="AgentRoom Logo" width="180">
+</p>
+
 <h1 align="center">🤖 AgentRoom</h1>
 
 <p align="center">
