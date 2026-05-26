@@ -277,14 +277,11 @@ export default function App() {
         const headers: Record<string, string> = {};
         if (memberToken) headers["X-Member-Token"] = memberToken;
         // Mark all messages as read
-        await fetch(
-          `${API_BASE}/rooms/${roomId}/messages/mark-all-read`,
-          {
-            method: "POST",
-            credentials: "include",
-            headers,
-          },
-        );
+        await fetch(`${API_BASE}/rooms/${roomId}/messages/mark-all-read`, {
+          method: "POST",
+          credentials: "include",
+          headers,
+        });
       } catch {}
     },
     [memberToken],

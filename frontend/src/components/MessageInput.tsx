@@ -196,8 +196,18 @@ export default function MessageInput({
               title="Click to remove"
             >
               @{name}
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
               </svg>
             </span>
           ))}
@@ -218,7 +228,11 @@ export default function MessageInput({
               onSend();
             }}
             rows={1}
-            placeholder={mentionTo.length > 0 ? `Message to @${mentionTo.join(", @")}...` : `Message as ${myName}...`}
+            placeholder={
+              mentionTo.length > 0
+                ? `Message to @${mentionTo.join(", @")}...`
+                : `Message as ${myName}...`
+            }
             className="flex-1 bg-transparent outline-none text-sm resize-none overflow-y-auto max-h-32 py-1 min-w-0"
             style={{ color: "var(--text-primary)" }}
           />

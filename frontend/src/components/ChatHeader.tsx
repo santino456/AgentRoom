@@ -11,7 +11,12 @@ interface AgentStatus {
 
 interface ChatHeaderProps {
   roomName: string;
-  wsStatus: "connecting" | "open" | "closed" | "waiting_for_auth" | "unauthorized";
+  wsStatus:
+    | "connecting"
+    | "open"
+    | "closed"
+    | "waiting_for_auth"
+    | "unauthorized";
   theme: ThemeName;
   onThemeChange: (theme: ThemeName) => void;
   onToggleSidebar: () => void;
@@ -116,7 +121,8 @@ export default function ChatHeader({
                     ? "var(--accent-green)"
                     : wsStatus === "connecting"
                       ? "var(--accent-amber)"
-                      : wsStatus === "waiting_for_auth" || wsStatus === "unauthorized"
+                      : wsStatus === "waiting_for_auth" ||
+                          wsStatus === "unauthorized"
                         ? "var(--accent-coral)"
                         : "var(--accent-coral)",
               }}

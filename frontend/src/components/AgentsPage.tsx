@@ -28,7 +28,10 @@ export default function AgentsPage({ onBack }: AgentsPageProps) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center" style={{ color: "var(--text-muted)" }}>
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ color: "var(--text-muted)" }}
+      >
         Loading agents...
       </div>
     );
@@ -48,8 +51,17 @@ export default function AgentsPage({ onBack }: AgentsPageProps) {
               }}
               title="Back"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7"/>
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M19 12H5M12 19l-7-7 7-7" />
               </svg>
             </button>
           )}
@@ -100,14 +112,20 @@ export default function AgentsPage({ onBack }: AgentsPageProps) {
                       {agent.name}
                     </h3>
                     {agent.owner && (
-                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
+                      <p
+                        className="text-xs truncate"
+                        style={{ color: "var(--text-muted)" }}
+                      >
                         Owner: {agent.owner}
                       </p>
                     )}
                   </div>
                 </div>
                 {agent.description && (
-                  <p className="text-sm line-clamp-2" style={{ color: "var(--text-secondary)" }}>
+                  <p
+                    className="text-sm line-clamp-2"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     {agent.description}
                   </p>
                 )}
