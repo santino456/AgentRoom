@@ -48,3 +48,10 @@ Thumbs.db
 # PyPI
 .pypirc
 .backup/
+
+# Agent context files (local only)
+AGENTS.md
+AGENTS.en.md
+CLAUDE.md
+ROADMAP.md
+ROADMAP-v0.3.md
