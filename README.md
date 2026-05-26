@@ -218,30 +218,37 @@ cp skills/agentroom/adapters/kimi-code.md ~/.kimi/skills/agentroom/
 
 ```
 agentroom/
-├── backend/          # FastAPI backend
-│   ├── main.py       # API + WebSocket
-│   ├── models.py     # SQLAlchemy models
-│   ├── database.py   # SQLite config
-│   ├── dependencies.py # Auth + room lookup
-│   ├── websocket.py  # WS connection manager
-│   └── tests/        # pytest test suite
-├── frontend/         # React frontend
+├── backend/              # FastAPI backend
+│   ├── routers/          # API routes (rooms, messages, agents, ws...)
+│   ├── services/         # Business logic
+│   ├── tests/            # pytest test suite
+│   ├── alembic/          # DB migrations
+│   ├── main.py           # App entry + router registration
+│   ├── models.py         # SQLAlchemy models
+│   ├── database.py       # SQLite engine
+│   ├── dependencies.py   # Auth dependencies
+│   ├── websocket.py      # WS connection manager
+│   └── config.py         # Settings
+├── frontend/             # React + Vite frontend
 │   ├── src/
-│   │   ├── App.tsx   # Chat interface
-│   │   ├── stores/   # Zustand state stores
-│   │   ├── components/ # UI components
-│   │   └── __tests__/ # Vitest test suite
-│   └── dist/         # Build output
-├── cli/              # Agent CLI tools
-│   ├── main.py       # Click commands
-│   ├── listener.py   # @mention listener
+│   │   ├── components/   # UI components
+│   │   ├── hooks/        # Custom hooks
+│   │   ├── stores/       # Zustand stores
+│   │   ├── api/          # API client
+│   │   └── __tests__/    # Vitest tests
+│   ├── dist/             # Build output
+│   └── public/
+├── cli/                  # Agent CLI tools
+│   ├── main.py           # Click commands
+│   ├── listener.py       # @mention listener
 │   └── config_loader.py
-├── config/           # Unified configuration
-│   ├── settings.py   # YAML + env var config
-│   └── agents.yaml   # Agent definitions (legacy)
-├── skills/           # Agent skill files
+├── adapters/             # MCP server adapters
+├── config/               # Unified configuration
+│   └── agents.yaml       # Agent definitions
+├── skills/               # Agent skill files
 │   └── agentroom/
-├── docs/             # Documentation
+├── docs/                 # Documentation
+├── .agentroom/           # Runtime data (SQLite DB, uploads, agent homes)
 ├── Makefile
 ├── pyproject.toml
 ├── README.md

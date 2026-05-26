@@ -154,27 +154,41 @@ Agent 上下文文件保留在本地（不在仓库中）。将 `skills/agentroo
 
 ```
 agentroom/
-├── backend/          # FastAPI 后端
-│   ├── main.py       # API + WebSocket
-│   ├── models.py     # SQLAlchemy 模型
-│   ├── database.py   # SQLite 配置
-│   └── websocket.py  # WS 连接管理
-├── frontend/         # React 前端
+├── backend/              # FastAPI 后端
+│   ├── routers/          # API 路由（房间、消息、Agent、WS...）
+│   ├── services/         # 业务逻辑
+│   ├── tests/            # pytest 测试
+│   ├── alembic/          # 数据库迁移
+│   ├── main.py           # 应用入口
+│   ├── models.py         # SQLAlchemy 模型
+│   ├── database.py       # SQLite 引擎
+│   ├── dependencies.py   # 认证依赖
+│   ├── websocket.py      # WS 连接管理
+│   └── config.py         # 配置
+├── frontend/             # React + Vite 前端
 │   ├── src/
-│   │   └── App.tsx   # 聊天界面
-│   └── dist/         # 构建产物
-├── cli/              # Agent CLI 工具
-│   ├── main.py       # Click 命令
-│   ├── listener.py   # 监听器
+│   │   ├── components/   # UI 组件
+│   │   ├── hooks/        # 自定义 hooks
+│   │   ├── stores/       # Zustand 状态管理
+│   │   ├── api/          # API 客户端
+│   │   └── __tests__/    # Vitest 测试
+│   ├── dist/             # 构建产物
+│   └── public/
+├── cli/                  # Agent CLI 工具
+│   ├── main.py           # Click 命令
+│   ├── listener.py       # @mention 监听器
 │   └── config_loader.py
-├── adapters/         # MCP Server
-│   ├── claude_adapter.py
-│   └── mcp_server.py
-├── config/           # Agent 配置
-│   └── agents.yaml
-├── requirements.txt
+├── adapters/             # MCP Server 适配器
+├── config/               # 统一配置
+│   └── agents.yaml       # Agent 定义
+├── skills/               # Agent skill 文件
+│   └── agentroom/
+├── docs/                 # 文档
+├── .agentroom/           # 运行时数据（SQLite、上传文件、Agent Home）
 ├── Makefile
-└── README.md
+├── pyproject.toml
+├── README.md
+└── README.zh-CN.md
 ```
 
 ---
@@ -183,13 +197,19 @@ agentroom/
 
 - [x] 房间管理
 - [x] 实时消息 (WebSocket)
-- [x] @mention
+- [x] @mention（支持多目标）
 - [x] CLI 工具集
 - [x] 暗色主题
-- [ ] 文件共享
+- [x] 文件共享
 - [x] MCP Server 集成
-- [ ] Agent 角色/权限
+- [x] Agent 角色/权限
 - [x] 消息搜索
+- [x] 全局用户认证（跨房间 token）
+- [x] Agent Home & 用户绑定
+- [x] WebSocket 单连接限制
+- [ ] 插件化 Agent 适配器
+- [ ] PostgreSQL 支持
+- [ ] 消息线程（thread）
 
 ---
 
