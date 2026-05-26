@@ -189,12 +189,44 @@ function MessageItem({
               style={{ backgroundColor: senderColor }}
             />
             {displayName}
-            {msg.to_name && (
+            {msg.to_name &&
+              msg.to_name.split(",").map((name) => (
+                <span
+                  key={name.trim()}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
+                  style={{
+                    backgroundColor: "rgba(16, 185, 129, 0.15)",
+                    color: "#10b981",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  <svg
+                    width="8"
+                    height="8"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                  @{name.trim()}
+                </span>
+              ))}
+          </div>
+        )}
+        {isMe && msg.to_name && (
+          <div className="text-[11px] mb-1 flex items-center gap-1.5 justify-end">
+            {msg.to_name.split(",").map((name) => (
               <span
+                key={name.trim()}
                 className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
                 style={{
-                  backgroundColor: "rgba(16, 185, 129, 0.15)",
-                  color: "#10b981",
+                  backgroundColor: "rgba(16, 185, 129, 0.2)",
+                  color: "#6ee7b7",
                   border: "1px solid rgba(16, 185, 129, 0.3)",
                 }}
               >
@@ -211,36 +243,9 @@ function MessageItem({
                   <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
                   <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
                 </svg>
-                @{msg.to_name}
+                @{name.trim()}
               </span>
-            )}
-          </div>
-        )}
-        {isMe && msg.to_name && (
-          <div className="text-[11px] mb-1 flex items-center gap-1.5 justify-end">
-            <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-medium"
-              style={{
-                backgroundColor: "rgba(16, 185, 129, 0.2)",
-                color: "#6ee7b7",
-                border: "1px solid rgba(16, 185, 129, 0.3)",
-              }}
-            >
-              <svg
-                width="8"
-                height="8"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              @{msg.to_name}
-            </span>
+            ))}
           </div>
         )}
         {isEditing ? (

@@ -8,7 +8,9 @@ interface MessageInputProps {
   isSending: boolean;
   myName: string;
   members: Member[];
+  mentionTo: string[];
   onInsertMention: (name: string) => void;
+  onClearMention: (name?: string) => void;
   onUploadFiles?: (files: FileList) => Promise<void>;
   isUploading?: boolean;
   uploadProgress?: string;
@@ -21,7 +23,9 @@ export default function MessageInput({
   isSending,
   myName,
   members,
+  mentionTo,
   onInsertMention,
+  onClearMention,
   onUploadFiles,
   isUploading,
   uploadProgress,
@@ -64,6 +68,17 @@ export default function MessageInput({
     e.preventDefault();
     setIsDragOver(false);
   }, []);
+
+  const onPaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const files = e.clipboardData?.files;
+      if (files && files.length > 0 && onUploadFiles) {
+        e.preventDefault();
+        handleFiles(files);
+      }
+    },
+    [handleFiles, onUploadFiles],
+  );
 
   const disabled = isSending || isUploading;
 
@@ -167,26 +182,47 @@ export default function MessageInput({
           </>
         )}
 
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter") return;
-            if (e.shiftKey) {
+        <div className="flex-1 flex items-center gap-1 min-w-0">
+          {/* Inline mention chips inside input area */}
+          {mentionTo.map((name) => (
+            <span
+              key={name}
+              className="shrink-0 inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium cursor-pointer"
+              style={{
+                backgroundColor: "rgba(16, 185, 129, 0.2)",
+                color: "#10b981",
+              }}
+              onClick={() => onClearMention(name)}
+              title="Click to remove"
+            >
+              @{name}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+              </svg>
+            </span>
+          ))}
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => onInputChange(e.target.value)}
+            onPaste={onPaste}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              if (e.shiftKey) {
+                e.preventDefault();
+                onInputChange(input + "\n");
+                return;
+              }
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               e.preventDefault();
-              onInputChange(input + "\n");
-              return;
-            }
-            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-            e.preventDefault();
-            onSend();
-          }}
-          rows={1}
-          placeholder={`Message as ${myName}...`}
-          className="flex-1 bg-transparent outline-none text-sm resize-none overflow-y-auto max-h-32 py-1"
-          style={{ color: "var(--text-primary)" }}
-        />
+              onSend();
+            }}
+            rows={1}
+            placeholder={mentionTo.length > 0 ? `Message to @${mentionTo.join(", @")}...` : `Message as ${myName}...`}
+            className="flex-1 bg-transparent outline-none text-sm resize-none overflow-y-auto max-h-32 py-1 min-w-0"
+            style={{ color: "var(--text-primary)" }}
+          />
+        </div>
         <button
           onClick={onSend}
           disabled={!input.trim() || disabled}

@@ -136,13 +136,42 @@ interface MemoizedMarkdownProps {
   onImageClick?: (src: string, alt?: string) => void;
 }
 
-// Encode spaces in Markdown image URLs so remark can parse them correctly
+// Encode spaces in Markdown image URLs so remark can parse them correctly.
+// Handles nested parentheses in URLs by counting brace depth.
 function encodeImageUrls(content: string): string {
   if (typeof content !== "string") return "";
-  return content.replace(
-    /!\[([^\]]*)\]\(([^)]*)\)/g,
-    (_match, alt, url) => `![${alt}](${url.replace(/ /g, "%20")})`,
-  );
+  let result = "";
+  let i = 0;
+  while (i < content.length) {
+    const start = content.indexOf("![", i);
+    if (start === -1) {
+      result += content.slice(i);
+      break;
+    }
+    result += content.slice(i, start);
+    const altEnd = content.indexOf("](", start + 2);
+    if (altEnd === -1) {
+      result += content.slice(start);
+      break;
+    }
+    const alt = content.slice(start + 2, altEnd);
+    const urlStart = altEnd + 2;
+    let depth = 1;
+    let urlEnd = urlStart;
+    while (urlEnd < content.length && depth > 0) {
+      if (content[urlEnd] === "(") depth++;
+      else if (content[urlEnd] === ")") depth--;
+      urlEnd++;
+    }
+    if (depth !== 0) {
+      result += content.slice(start);
+      break;
+    }
+    const url = content.slice(urlStart, urlEnd - 1).replace(/ /g, "%20");
+    result += `![${alt}](${url})`;
+    i = urlEnd;
+  }
+  return result;
 }
 
 export const MemoizedMarkdown = React.memo(

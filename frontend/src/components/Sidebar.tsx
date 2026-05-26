@@ -13,6 +13,7 @@ interface SidebarProps {
   onMyNameChange: (name: string) => void;
   onJoinRoom: (roomId: number, name: string, secret: string) => void;
   onClose: () => void;
+  onShowAgents?: () => void;
 }
 
 export default function Sidebar({
@@ -25,6 +26,7 @@ export default function Sidebar({
   onRoomSelect,
   onCreateRoom,
   onJoinRoom,
+  onShowAgents,
 }: SidebarProps) {
   const [joinName, setJoinName] = useState("");
   const [joinRoomId, setJoinRoomId] = useState("");
@@ -377,6 +379,26 @@ export default function Sidebar({
               Join
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Agents */}
+      {onShowAgents && (
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => {
+              onShowAgents();
+              onClose();
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all btn-press"
+            style={{
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            <span>🤖</span>
+            <span className="flex-1 text-left">My Agents</span>
+          </button>
         </div>
       )}
 

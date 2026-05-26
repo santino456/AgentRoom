@@ -22,6 +22,7 @@ import { deleteRoom } from "./api/client";
 
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const MemberList = lazy(() => import("./components/MemberList"));
+const AgentsPage = lazy(() => import("./components/AgentsPage"));
 
 export default function App() {
   const { theme, setTheme } = useTheme();
@@ -35,24 +36,25 @@ export default function App() {
   const [input, setInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [wsStatus, setWsStatus] = useState<"connecting" | "open" | "closed">(
-    "closed",
-  );
+  const [wsStatus, setWsStatus] = useState<
+    "connecting" | "open" | "closed" | "waiting_for_auth" | "unauthorized"
+  >("closed");
   const {
     token: memberToken,
     memberName,
     saveToken,
     clearToken,
-  } = useMemberToken(currentRoomId);
+  } = useMemberToken();
   const [showSidebar, setShowSidebar] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
+  const [showAgentsPage, setShowAgentsPage] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "error" | "success";
   } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [mentionTo, setMentionTo] = useState<string | null>(null);
+  const [mentionTo, setMentionTo] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [announcement, setAnnouncement] = useState("");
@@ -274,24 +276,15 @@ export default function App() {
       try {
         const headers: Record<string, string> = {};
         if (memberToken) headers["X-Member-Token"] = memberToken;
-        // Get latest message and mark it as read
-        const res = await fetch(
-          `${API_BASE}/rooms/${roomId}/messages?limit=1`,
-          { credentials: "include", headers },
+        // Mark all messages as read
+        await fetch(
+          `${API_BASE}/rooms/${roomId}/messages/mark-all-read`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers,
+          },
         );
-        if (res.ok) {
-          const msgs = await res.json();
-          if (Array.isArray(msgs) && msgs.length > 0) {
-            await fetch(
-              `${API_BASE}/rooms/${roomId}/messages/read?message_id=${msgs[0].id}`,
-              {
-                method: "POST",
-                credentials: "include",
-                headers,
-              },
-            );
-          }
-        }
       } catch {}
     },
     [memberToken],
@@ -309,45 +302,56 @@ export default function App() {
   // Load room data
   const loadRoomData = useCallback(
     async (roomId: number, signal?: AbortSignal) => {
-      const headers: Record<string, string> = {};
-      if (memberToken) headers["X-Member-Token"] = memberToken;
-      const [msgRes, memRes, statsRes] = await Promise.all([
-        fetch(`${API_BASE}/rooms/${roomId}/messages?limit=200`, {
-          signal,
-          credentials: "include",
-          headers,
-        }),
-        fetch(`${API_BASE}/rooms/${roomId}/members`, {
-          signal,
-          credentials: "include",
-          headers,
-        }),
-        fetch(`${API_BASE}/rooms/${roomId}/members/stats`, {
-          signal,
-          credentials: "include",
-          headers,
-        }),
-      ]);
-      const msgs = await msgRes.json();
-      const mems = await memRes.json();
-      const stats = await statsRes.json();
-      setMessages(Array.isArray(msgs) ? msgs : []);
-      setMembers(Array.isArray(mems) ? mems : []);
-      if (Array.isArray(stats)) {
-        const map: Record<number, MemberStats> = {};
-        for (const s of stats) map[s.member_id] = s;
-        setMemberStats(map);
+      try {
+        const headers: Record<string, string> = {};
+        if (memberToken) headers["X-Member-Token"] = memberToken;
+        const [msgRes, memRes, statsRes] = await Promise.all([
+          fetch(`${API_BASE}/rooms/${roomId}/messages?limit=200`, {
+            signal,
+            credentials: "include",
+            headers,
+          }),
+          fetch(`${API_BASE}/rooms/${roomId}/members`, {
+            signal,
+            credentials: "include",
+            headers,
+          }),
+          fetch(`${API_BASE}/rooms/${roomId}/members/stats`, {
+            signal,
+            credentials: "include",
+            headers,
+          }),
+        ]);
+        const msgs = await msgRes.json();
+        const mems = await memRes.json();
+        const stats = await statsRes.json();
+        setMessages(Array.isArray(msgs) ? msgs : []);
+        setMembers(Array.isArray(mems) ? mems : []);
+        if (Array.isArray(stats)) {
+          const map: Record<number, MemberStats> = {};
+          for (const s of stats) map[s.member_id] = s;
+          setMemberStats(map);
+        }
+        loadAgentStatus(roomId, signal);
+      } catch {
+        // Ignore abort errors and network failures
       }
-      loadAgentStatus(roomId, signal);
     },
     [loadAgentStatus, memberToken],
   );
 
+  // Load room data when room changes (separate from WebSocket to avoid race conditions)
+  useEffect(() => {
+    if (!currentRoomId) return;
+    setMessages([]); // clear old messages to avoid cross-room pollution
+    const controller = new AbortController();
+    loadRoomData(currentRoomId, controller.signal);
+    return () => controller.abort();
+  }, [currentRoomId, loadRoomData]);
+
   // WebSocket connection
   useEffect(() => {
     if (!currentRoomId) return;
-    const controller = new AbortController();
-    loadRoomData(currentRoomId, controller.signal);
 
     let ws: WebSocket | null = null;
     let reconnectDelay = 1000;
@@ -359,8 +363,12 @@ export default function App() {
 
     const connect = () => {
       if (!shouldReconnect) return;
+      if (!memberToken) {
+        setWsStatus("waiting_for_auth");
+        return;
+      }
       setWsStatus("connecting");
-      const tokenParam = memberToken ? `?token=${memberToken}` : "";
+      const tokenParam = `?token=${memberToken}`;
       ws = new WebSocket(`${WS_BASE}/ws/${currentRoomId}${tokenParam}`);
       wsRef.current = ws;
 
@@ -368,18 +376,23 @@ export default function App() {
         setWsStatus("open");
         reconnectDelay = 1000;
         reconnectAttempts = 0;
+        console.log("[WS] Connected");
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log("[WS] Received:", data.type || data.id, data);
           if (data.type === "message_deleted") {
             setMessages((prev) => prev.filter((m) => m.id !== data.id));
             return;
           }
           // Ignore ping/pong/heartbeat and malformed messages
+          if (data.type === "ping") {
+            ws.send("pong");
+            return;
+          }
           if (
-            data.type === "ping" ||
             data.type === "pong" ||
             data.type === "heartbeat" ||
             data.id == null
@@ -403,10 +416,18 @@ export default function App() {
             }
             return [...prev, msg];
           });
-        } catch {}
+        } catch (e) {
+          console.error("[WS] Message parse error:", e);
+        }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log("[WS] Closed:", e.code, e.reason);
+        if (e.code === 1008) {
+          setWsStatus("unauthorized");
+          wsRef.current = null;
+          return; // Don't reconnect on auth failure
+        }
         setWsStatus("closed");
         wsRef.current = null;
         if (shouldReconnect && reconnectAttempts < maxReconnectAttempts) {
@@ -416,21 +437,22 @@ export default function App() {
         }
       };
 
-      ws.onerror = () => {};
+      ws.onerror = (e) => {
+        console.error("[WS] Error:", e);
+      };
     };
 
     connect();
 
     return () => {
       shouldReconnect = false;
-      controller.abort();
       if (reconnectTimer) clearTimeout(reconnectTimer);
       if (ws) {
         ws.close();
         wsRef.current = null;
       }
     };
-  }, [currentRoomId, loadRoomData]);
+  }, [currentRoomId, memberToken]);
 
   // Upload files and insert markdown into input
   const uploadFiles = async (files: FileList) => {
@@ -504,7 +526,7 @@ export default function App() {
 
     try {
       const body: any = { content };
-      if (mentionTo) body.to_name = mentionTo;
+      if (mentionTo.length > 0) body.to_name = mentionTo.join(",");
       const res = await fetch(`${API_BASE}/rooms/${currentRoomId}/messages`, {
         method: "POST",
         headers,
@@ -515,7 +537,8 @@ export default function App() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || `Failed: ${res.status}`);
       }
-      setMentionTo(null);
+      // 发送成功，不乐观更新 messages，等 WS 推送
+      setMentionTo([]);
       // Delete draft after successful send
       try {
         const draftHeaders: Record<string, string> = {};
@@ -535,11 +558,11 @@ export default function App() {
   };
 
   const insertMention = (name: string) => {
-    setMentionTo(name);
-    const mention = name === "all" ? "@all " : `@${name} `;
-    setInput((prev) => {
-      const sep = prev && !prev.endsWith(" ") ? " " : "";
-      return prev + sep + mention;
+    setMentionTo((prev) => {
+      if (prev.includes(name)) {
+        return prev.filter((n) => n !== name);
+      }
+      return [...prev, name];
     });
   };
 
@@ -565,7 +588,7 @@ export default function App() {
         throw new Error(err.detail || `Join failed: ${res.status}`);
       }
       const data = await res.json();
-      saveToken(roomId, name.trim(), data.token);
+      saveToken(name.trim());
       setToast({ message: `Joined as ${name.trim()}!`, type: "success" });
       setCurrentRoomId(roomId);
       // Only reload members, not messages (WebSocket handles message updates)
@@ -670,7 +693,7 @@ export default function App() {
         });
         const joinData = await joinRes.json();
         if (joinRes.ok && joinData.token) {
-          saveToken(newRoom.id, memberName, joinData.token);
+          saveToken(memberName);
         }
       } catch {
         // ignore auto-join errors
@@ -803,6 +826,7 @@ export default function App() {
             onRoomSelect={(id) => {
               setCurrentRoomId(id);
               setShowSidebar(false);
+              setShowAgentsPage(false);
               markRoomRead(id);
             }}
             onCreateRoom={createRoom}
@@ -814,11 +838,16 @@ export default function App() {
             }}
             onJoinRoom={joinRoom}
             onClose={() => setShowSidebar(false)}
+            onShowAgents={() => setShowAgentsPage(true)}
           />
         </Suspense>
 
         <main className="flex-1 flex flex-col min-w-0">
-          {rooms.length === 0 && !currentRoomId ? (
+          {showAgentsPage ? (
+            <Suspense fallback={null}>
+              <AgentsPage onBack={() => setShowAgentsPage(false)} />
+            </Suspense>
+          ) : rooms.length === 0 && !currentRoomId ? (
             <WelcomeScreen onCreateRoom={createRoom} onJoinRoom={joinRoom} />
           ) : (
             <>
@@ -981,7 +1010,15 @@ export default function App() {
                 isSending={isSending}
                 myName={memberName}
                 members={members}
+                mentionTo={mentionTo}
                 onInsertMention={insertMention}
+                onClearMention={(name) => {
+                  if (name) {
+                    setMentionTo((prev) => prev.filter((n) => n !== name));
+                  } else {
+                    setMentionTo([]);
+                  }
+                }}
                 onUploadFiles={uploadFiles}
                 isUploading={isUploading}
                 uploadProgress={uploadProgress}
