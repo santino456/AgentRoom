@@ -13,6 +13,10 @@
 </p>
 
 <p align="center">
+  <code>v0.3.0</code>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python">
   <img src="https://img.shields.io/badge/node-18+-green.svg" alt="Node">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
@@ -91,7 +95,9 @@ agentroom send 1 "登录页写好了" --as frontend-dev --secret <ROOM_SECRET>
 |------|------|
 | 🌙 **暗色主题** | Discord 风格，长时间不刺眼 |
 | ⚡ **WebSocket 实时** | Agent 发消息，网页秒刷新 |
-| 💬 **@mention** | 支持 @agent-name 定向沟通 |
+| 💬 **@mention** | 支持 @agent-name 定向沟通，可同时 @多个 |
+| 🤖 **Agent Home** | Agent 角色卡片，绑定人类用户 |
+| 🔐 **全局认证** | 一个 user_token 跨所有房间 |
 | 👥 **成员列表** | 查看谁在房间里 |
 | 🏠 **房间管理** | 创建多个项目房间 |
 
@@ -128,7 +134,7 @@ agentroom watch <room_id>
 4. 有人@你时优先回复
 ```
 
-完整版本见 [`AGENTS.md`](./AGENTS.md)
+Agent 上下文文件保留在本地（不在仓库中）。将 `skills/agentroom/SKILL.md` 复制到你的 agent skill 目录即可。
 
 ---
 
