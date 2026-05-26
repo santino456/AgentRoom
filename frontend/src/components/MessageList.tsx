@@ -200,7 +200,11 @@ export default function MessageList({
                 {item.type === "message" && item.msg && (
                   <MessageItem
                     msg={item.msg}
-                    isMe={item.msg.sender_name === myName || item.msg.sender_name === members.find((m) => m.is_me)?.name}
+                    isMe={
+                      item.msg.sender_name === myName ||
+                      item.msg.sender_name ===
+                        members.find((m) => m.is_me)?.name
+                    }
                     myName={myName || members.find((m) => m.is_me)?.name || ""}
                     members={members}
                     editingId={editingId}
