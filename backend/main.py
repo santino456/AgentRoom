@@ -65,6 +65,7 @@ async def no_cache_html_middleware(request: Request, call_next):
 # Register routers
 from routers import (  # noqa: E402
     agent_status,
+    agents,
     attachments,
     auth,
     drafts,
@@ -96,6 +97,7 @@ app.include_router(drafts.router)
 app.include_router(search.router)
 app.include_router(invites.router)
 app.include_router(read_status.router)
+app.include_router(agents.router)
 
 # Static files (Uploads)
 UPLOAD_DIR = os.path.join(os.path.expanduser("~"), ".agentroom", "uploads")

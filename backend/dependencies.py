@@ -62,10 +62,11 @@ def _find_member(request: Request, x_member_token: str, room_id: int, db: Sessio
         if member:
             return member
 
-    # 4. Fallback to X-Member-Token header (legacy CLI/agents)
+    # 4. Fallback to X-Member-Token header (legacy CLI/agents, also accepts user_token)
     if x_member_token:
         member = db.query(Member).filter(
-            Member.room_id == room_id, Member.token == x_member_token
+            Member.room_id == room_id,
+            (Member.token == x_member_token) | (Member.user_token == x_member_token)
         ).first()
         if member:
             return member

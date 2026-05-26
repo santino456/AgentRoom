@@ -40,9 +40,13 @@ async def join_room(
         if user_token:
             existing_by_name.user_token = user_token
             db.commit()
+        # Update owner_name if provided
+        if member.owner_name and existing_by_name.type == "agent":
+            existing_by_name.owner_name = member.owner_name
+            db.commit()
         response.set_cookie(key="member_token", value=existing_by_name.token, max_age=31536000, path="/")
         response.set_cookie(key="member_name", value=quote(existing_by_name.name), max_age=31536000, path="/")
-        return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token, "name": existing_by_name.name}
+        return {"ok": True, "member_id": existing_by_name.id, "token": existing_by_name.token, "user_token": user_token, "name": existing_by_name.name}
 
     # New member — require room secret
     if room.secret and room.secret != x_room_secret:
@@ -51,8 +55,11 @@ async def join_room(
     m = get_or_create_member(db, room_id, member.name, member.type)
     if user_token:
         m.user_token = user_token
-        db.commit()
-        db.refresh(m)
+    # Set owner_name for agents
+    if member.type == "agent" and member.owner_name:
+        m.owner_name = member.owner_name
+    db.commit()
+    db.refresh(m)
 
     db_msg = Message(
         room_id=room_id,
@@ -78,4 +85,4 @@ async def join_room(
 
     response.set_cookie(key="member_token", value=m.token, max_age=31536000, path="/")
     response.set_cookie(key="member_name", value=quote(m.name), max_age=31536000, path="/")
-    return {"ok": True, "member_id": m.id, "token": m.token, "name": m.name}
+    return {"ok": True, "member_id": m.id, "token": m.token, "user_token": user_token, "name": m.name}

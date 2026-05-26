@@ -54,3 +54,33 @@ def get_unread_count(
     ).scalar() or 0
 
     return {"unread_count": max(0, total_msgs - read_msgs)}
+
+
+@router.post("/mark-all-read")
+def mark_all_read(
+    room_id: int,
+    request: Request,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Mark all messages in this room as read by the current member."""
+    get_room(room_id, db)
+    member = get_current_member(room_id, request, x_member_token, db)
+
+    # Get all message IDs in this room that are not yet read by this member
+    read_msg_ids = db.query(MessageRead.message_id).filter(
+        MessageRead.room_id == room_id,
+        MessageRead.member_id == member.id,
+    ).all()
+    read_ids = {r[0] for r in read_msg_ids}
+
+    all_msgs = db.query(Message.id).filter(Message.room_id == room_id).all()
+    unread_ids = [m[0] for m in all_msgs if m[0] not in read_ids]
+
+    for msg_id in unread_ids:
+        db.add(MessageRead(room_id=room_id, member_id=member.id, message_id=msg_id))
+
+    if unread_ids:
+        db.commit()
+
+    return {"ok": True, "marked_count": len(unread_ids)}

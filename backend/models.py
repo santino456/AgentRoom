@@ -53,6 +53,7 @@ class Member(Base):
     user_token = Column(String, nullable=True, index=True)
     role = Column(String, default="member")
     description = Column(Text, default="", nullable=False)
+    owner_name = Column(String, nullable=True)  # Agent 所属人类用户的名字
     joined_at = Column(DateTime, default=_utcnow)
     last_active = Column(DateTime, default=_utcnow)
 
@@ -68,6 +69,7 @@ class Message(Base):
     sender_id = Column(Integer, ForeignKey("members.id"), nullable=True)
     content = Column(Text, nullable=False)
     to_member_id = Column(Integer, ForeignKey("members.id"), nullable=True)
+    to_name = Column(String, nullable=True)  # 逗号分隔的多 @mention 目标
     msg_type = Column(String, default=MessageType.MESSAGE)
     created_at = Column(DateTime, default=_utcnow)
     updated_at = Column(DateTime, default=_utcnow, onupdate=_utcnow)

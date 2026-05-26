@@ -61,6 +61,33 @@ def create_room(
     db.add(db_room)
     db.commit()
     db.refresh(db_room)
+
+    # Auto-invite creator's agents
+    user_token = request.cookies.get("user_token")
+    if user_token:
+        # Find the human user with this user_token (any room)
+        creator = db.query(Member).filter(
+            Member.user_token == user_token,
+            Member.type == "human"
+        ).first()
+        if creator:
+            # Ensure creator is in the new room as owner
+            from services.member_service import get_or_create_member
+            creator_member = get_or_create_member(db, db_room.id, creator.name, "human")
+            creator_member.role = "owner"
+            creator_member.user_token = user_token
+            db.commit()
+
+            # Auto-join owner's agents
+            agent_names = db.query(Member.name).filter(
+                Member.owner_name == creator.name,
+                Member.type == "agent"
+            ).distinct().all()
+            for (agent_name,) in agent_names:
+                agent_member = get_or_create_member(db, db_room.id, agent_name, "agent")
+                agent_member.owner_name = creator.name
+                db.commit()
+
     return db_room
 
 

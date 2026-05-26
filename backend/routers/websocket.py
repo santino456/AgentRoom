@@ -14,26 +14,52 @@ logger = get_logger("websocket")
 PING_INTERVAL = 30  # seconds
 PING_TIMEOUT = 10   # seconds
 
+# 全局单连接：同一 member 同一房间只能有一个 WS 连接
+_active_connections: dict[tuple[int, int], WebSocket] = {}
+
 
 @router.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str = ""):
-    # Verify token before accepting connection
-    if token:
-        db = next(get_db())
-        try:
+    db = next(get_db())
+    try:
+        member = None
+        # 1. Try URL token (member_token or user_token)
+        if token:
             member = db.query(Member).filter(
                 Member.room_id == room_id,
-                Member.token == token
+                (Member.token == token) | (Member.user_token == token)
             ).first()
-            if not member:
-                await websocket.close(code=1008, reason="Unauthorized")
-                return
-        finally:
-            db.close()
-    else:
-        # Reject unauthenticated connections
-        await websocket.close(code=1008, reason="Unauthorized: token required")
-        return
+        # 2. Try user_token cookie (global identity)
+        if not member:
+            user_token = websocket.cookies.get("user_token", "")
+            if user_token:
+                member = db.query(Member).filter(
+                    Member.room_id == room_id,
+                    Member.user_token == user_token
+                ).first()
+        # 3. Try member_token cookie (legacy)
+        if not member:
+            member_token = websocket.cookies.get("member_token", "")
+            if member_token:
+                member = db.query(Member).filter(
+                    Member.room_id == room_id,
+                    Member.token == member_token
+                ).first()
+        if not member:
+            await websocket.close(code=1008, reason="Unauthorized")
+            return
+    finally:
+        db.close()
+
+    # 全局单连接限制：同一 member 同一房间，新连接踢掉旧连接
+    conn_key = (member.id, room_id)
+    if conn_key in _active_connections:
+        old_ws = _active_connections[conn_key]
+        try:
+            await old_ws.close(code=1000, reason="Replaced by new connection")
+        except Exception:
+            pass
+    _active_connections[conn_key] = websocket
 
     await manager.connect(room_id, websocket)
     last_pong = asyncio.get_event_loop().time()
@@ -87,4 +113,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: int, token: str = ""
     except WebSocketDisconnect:
         pass
     finally:
+        # 只有当前 websocket 仍是这个 key 的拥有者时才移除（避免旧连接关闭时误删新连接）
+        if _active_connections.get(conn_key) is websocket:
+            _active_connections.pop(conn_key, None)
         manager.disconnect(room_id, websocket)

@@ -23,6 +23,7 @@ class RoomOut(BaseModel):
 class MemberCreate(BaseModel):
     name: str = Field(..., max_length=settings.max_member_name_length)
     type: str = "agent"
+    owner_name: Optional[str] = None  # Agent 所属人类用户的名字
 
 
 class MemberOut(BaseModel):
@@ -31,6 +32,7 @@ class MemberOut(BaseModel):
     type: str
     role: str = "member"
     description: str = ""
+    owner_name: Optional[str] = None
     joined_at: datetime
     last_active: datetime
     is_me: bool = False

@@ -317,10 +317,11 @@ async def listen_websocket(
                         # 2. to_name == "all" 或内容含 @all（广播）
                         # 3. 消息内容中的普通 @mention 不再触发（避免误触发）
                         to_name = (msg.get("to_name") or "").lower()
+                        to_names = [t.strip() for t in to_name.split(",") if t.strip()]
                         is_mentioned = (
-                            to_name in (a.lower() for a in aliases if a != "all")
-                            or to_name == "all"
-                            or (not to_name and "@all" in content.lower())
+                            any(a.lower() in to_names for a in aliases if a != "all")
+                            or "all" in to_names
+                            or is_mentioning(content, aliases)
                         )
                         if is_mentioned:
                             # 文件锁协调：一次尝试，避免重试导致两个监听器都退出

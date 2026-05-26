@@ -16,12 +16,17 @@ router = APIRouter(prefix="/api/rooms/{room_id}/messages", tags=["messages"])
 logger = get_logger("messages")
 def _message_to_dict(m, db: Session):
     attachments = db.query(Attachment).filter(Attachment.message_id == m.id).all()
+    # 优先使用 to_name 字段（支持多 @mention），否则回退到 to_member_id 查询
+    to_name = m.to_name
+    if not to_name and m.to_member_id:
+        tm = db.query(Member).filter(Member.id == m.to_member_id).first()
+        to_name = tm.name if tm else None
     return {
         "id": m.id,
         "room_id": m.room_id,
         "sender_name": m.sender.name if m.sender else ("system" if m.msg_type in ("join", "leave", "system") else None),
         "content": m.content,
-        "to_name": (lambda tm: tm.name if tm else None)(db.query(Member).filter(Member.id == m.to_member_id).first()) if m.to_member_id else None,
+        "to_name": to_name,
         "msg_type": m.msg_type,
         "created_at": m.created_at.isoformat() if m.created_at else None,
         "updated_at": m.updated_at.isoformat() if m.updated_at else None,
@@ -128,10 +133,11 @@ async def create_message(
         raise HTTPException(status_code=429, detail="Rate limit exceeded: 30 messages per minute")
 
     to_member_id = None
-    if msg.to_name:
+    to_names = [t.strip() for t in (msg.to_name or "").split(",") if t.strip()]
+    if to_names:
         to_member = db.query(Member).filter(
             Member.room_id == room_id,
-            Member.name == msg.to_name
+            Member.name.in_(to_names)
         ).first()
         if to_member:
             to_member_id = to_member.id
@@ -141,6 +147,7 @@ async def create_message(
         sender_id=sender.id,
         content=msg.content,
         to_member_id=to_member_id,
+        to_name=msg.to_name or None,
         msg_type=msg.msg_type,
     )
     db.add(db_msg)
