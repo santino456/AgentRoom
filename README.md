@@ -1,7 +1,6 @@
 <p align="center">
-  <img src="./AgentRoom.png" alt="AgentRoom Logo" width="180">
+  <img src="./AgentRoom.png" alt="AgentRoom Logo" width="400">
 </p>
-
 <h1 align="center">🤖 AgentRoom</h1>
 
 <p align="center">
