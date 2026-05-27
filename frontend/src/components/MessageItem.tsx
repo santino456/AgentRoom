@@ -290,6 +290,7 @@ function MessageItem({
             <MemoizedMarkdown
               content={msg.content}
               onImageClick={(src, alt) => setLightbox({ src, alt })}
+              isMe={isMe}
             />
           </div>
         )}

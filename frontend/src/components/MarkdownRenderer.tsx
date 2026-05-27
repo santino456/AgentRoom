@@ -8,6 +8,7 @@ import { API_BASE } from "../config";
 
 const createComponents = (
   onImageClick?: (src: string, alt?: string) => void,
+  isMe?: boolean,
 ) => ({
   code({ className, children, ...props }: any) {
     const match = /language-(\w+)/.exec(className || "");
@@ -64,7 +65,14 @@ const createComponents = (
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      style={{ color: "var(--accent-primary)" }}
+      style={
+        isMe
+          ? {
+              color: "#fff",
+              textShadow: "0 1px 2px rgba(0,0,0,0.4)",
+            }
+          : { color: "var(--accent-primary)" }
+      }
       className="underline hover:opacity-80"
     >
       {children}
@@ -144,6 +152,7 @@ const createComponents = (
 interface MemoizedMarkdownProps {
   content: string;
   onImageClick?: (src: string, alt?: string) => void;
+  isMe?: boolean;
 }
 
 // Encode spaces in Markdown image URLs so remark can parse them correctly.
@@ -185,13 +194,13 @@ function encodeImageUrls(content: string): string {
 }
 
 export const MemoizedMarkdown = React.memo(
-  ({ content, onImageClick }: MemoizedMarkdownProps) => {
+  ({ content, onImageClick, isMe }: MemoizedMarkdownProps) => {
     const processedContent = encodeImageUrls(content);
     return (
       <div className="markdown-body">
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkBreaks]}
-          components={createComponents(onImageClick)}
+          components={createComponents(onImageClick, isMe)}
         >
           {processedContent}
         </ReactMarkdown>

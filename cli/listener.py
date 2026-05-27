@@ -25,6 +25,10 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config_loader import get_agent_config, get_global_config, load_config
 
 
+# 模块级 fd 缓存：避免 macOS 上同一进程对同一文件重复 flock 失败
+_listener_lock_fds: dict[tuple[str, int], int] = {}
+
+
 def _is_process_alive(pid: int) -> bool:
     """检查指定 PID 的进程是否仍在运行。"""
     try:
@@ -36,24 +40,38 @@ def _is_process_alive(pid: int) -> bool:
 
 def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bool:
     """尝试获取文件锁，确保同一时刻只有一个监听器响应 @ 消息。
-    使用 fcntl.flock (POSIX) 避免过期锁清理的竞态窗口。"""
+    使用 fcntl.flock (POSIX) 避免过期锁清理的竞态窗口。
+    同一进程重复调用时会复用已持有的 fd（解决 macOS flock 行为差异）。"""
+    key = (agent_name, room_id)
+    if key in _listener_lock_fds:
+        # 当前进程已持有锁，刷新时间戳即可
+        fd = _listener_lock_fds[key]
+        now = time.time()
+        my_pid = os.getpid()
+        try:
+            os.ftruncate(fd, 0)
+            os.lseek(fd, 0, os.SEEK_SET)
+            lock_data = json.dumps({"timestamp": now, "pid": my_pid})
+            os.write(fd, lock_data.encode())
+            os.fsync(fd)
+        except Exception:
+            pass
+        return True
+
     import fcntl
 
     lock_path = os.path.join(tempfile.gettempdir(), f"agentroom-lock-{agent_name}-{room_id}.json")
     now = time.time()
     my_pid = os.getpid()
 
-    # 打开（或创建）锁文件，用 flock 保护所有操作
     fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
     try:
-        # 非阻塞获取排他锁；如果已被占用立即失败
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except (BlockingIOError, OSError):
         os.close(fd)
         return False
 
     try:
-        # 持有 flock 后安全地读写锁文件内容
         try:
             os.lseek(fd, 0, os.SEEK_SET)
             data_raw = os.read(fd, 1024).decode()
@@ -61,25 +79,21 @@ def try_acquire_lock(agent_name: str, room_id: int, ttl_seconds: int = 30) -> bo
                 data = json.loads(data_raw)
                 lock_time = data.get("timestamp", 0)
                 lock_pid = data.get("pid", 0)
-                # 锁在 TTL 内且持有进程还活着 → 归别人持有
                 if now - lock_time <= ttl_seconds and _is_process_alive(lock_pid):
-                    # 释放 flock 并关闭 fd，让其他进程有机会竞争
                     fcntl.flock(fd, fcntl.LOCK_UN)
                     os.close(fd)
                     return False
-                # 否则视为过期/孤儿锁，继续执行并覆盖
         except Exception:
-            pass  # 文件为空或损坏，视为可获取
+            pass
 
-        # 清空并写入自己的锁数据
         os.ftruncate(fd, 0)
         os.lseek(fd, 0, os.SEEK_SET)
         lock_data = json.dumps({"timestamp": now, "pid": my_pid})
         os.write(fd, lock_data.encode())
         os.fsync(fd)
+        _listener_lock_fds[key] = fd
         return True
     except Exception:
-        # 异常时释放锁并关闭 fd
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
         raise
@@ -242,6 +256,29 @@ async def listen_websocket(
     except Exception as e:
         print(f"[{agent_name}] _check_missed_mentions skipped: {e}", flush=True)
 
+    # 协调：只有抢到锁的监听器才建立 WS 连接，避免多个监听器互相踢
+    # 备用监听器使用阻塞 flock + run_in_executor，零 CPU 轮询
+    print(f"[{agent_name}] Waiting for primary listener lock...", flush=True)
+
+    def _blocking_lock():
+        import fcntl
+        lock_path = os.path.join(tempfile.gettempdir(), f"agentroom-lock-{agent_name}-{room_id}.json")
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        now = time.time()
+        my_pid = os.getpid()
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)
+        lock_data = json.dumps({"timestamp": now, "pid": my_pid})
+        os.write(fd, lock_data.encode())
+        os.fsync(fd)
+        return fd
+
+    loop = asyncio.get_event_loop()
+    fd = await loop.run_in_executor(None, _blocking_lock)
+    _listener_lock_fds[(agent_name, room_id)] = fd
+    print(f"[{agent_name}] Acquired primary listener lock", flush=True)
+
     pending_messages = []
     ws_url = f"{base_ws}/ws/{room_id}?token={token}" if token else f"{base_ws}/ws/{room_id}"
     reconnect_delay = 1.0
@@ -324,11 +361,6 @@ async def listen_websocket(
                             or is_mentioning(content, aliases)
                         )
                         if is_mentioned:
-                            # 文件锁协调：一次尝试，避免重试导致两个监听器都退出
-                            if not try_acquire_lock(agent_name, room_id):
-                                print(f"[{agent_name}] Lock held, skipping (other listener is processing)", flush=True)
-                                continue
-
                             # 拉取上下文
                             recent = fetch_messages(base_http, room_id, token, limit=5)
                             context = [m for m in recent if m["id"] > last_seen_id - 10]
@@ -388,7 +420,7 @@ async def listen_websocket(
 
 def main():
     parser = argparse.ArgumentParser(description="AgentRoom — Unified Listener")
-    parser.add_argument("--agent", required=True, help="Agent name (e.g. claude-agent, Kimi-Agent)")
+    parser.add_argument("--agent", default="", help="Agent name (自动从环境变量或项目配置读取)")
     parser.add_argument("--room", type=int, default=1, help="Room ID")
     parser.add_argument("--timeout", type=int, default=None, help="Timeout in seconds")
     parser.add_argument("--config", default="config/agents.yaml", help="Config file path (optional)")
@@ -440,10 +472,34 @@ def main():
         timeout = int(timeout * (0.8 + random.random() * 0.4))  # 80%~120% 浮动
         print(f"[{args.agent}] Timeout jittered: {timeout}s", flush=True)
 
+    agent_name = args.agent
+    if not agent_name:
+        # 自动解析：环境变量 > 项目配置
+        env = os.environ.get("AGENTROOM_AGENT_NAME") or os.environ.get("AGENTROOM_AGENT")
+        if env:
+            agent_name = env
+        else:
+            project_cfg_path = Path.cwd() / ".agentroom" / "config.yaml"
+            if project_cfg_path.exists():
+                try:
+                    import yaml
+                    with open(project_cfg_path, "r", encoding="utf-8") as f:
+                        cfg = yaml.safe_load(f) or {}
+                    agent_name = cfg.get("default_agent", "")
+                except Exception:
+                    pass
+
+    if not agent_name:
+        print("❌ 无法识别 Agent 名称。请通过以下方式之一指定：", flush=True)
+        print("   1. 命令行: --agent Kimi-Dev", flush=True)
+        print("   2. 环境变量: export AGENTROOM_AGENT_NAME=Kimi-Dev", flush=True)
+        print("   3. 项目配置: agentroom agent init --name Kimi-Dev", flush=True)
+        sys.exit(1)
+
     try:
         asyncio.run(listen_websocket(
             room_id=room_id,
-            agent_name=args.agent,
+            agent_name=agent_name,
             fallback_aliases=aliases,
             base_http=base_http,
             base_ws=base_ws,
@@ -452,7 +508,7 @@ def main():
             timeout=timeout,
         ))
     except KeyboardInterrupt:
-        print(f"\n[{args.agent}] Stopped")
+        print(f"\n[{agent_name}] Stopped")
 
 
 if __name__ == "__main__":

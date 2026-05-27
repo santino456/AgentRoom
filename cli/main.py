@@ -14,8 +14,10 @@ from pathlib import Path
 import click
 import httpx
 import psutil
+import yaml
 
 CLI_CONFIG_DIR = Path.home() / ".agentroom"
+PROJECT_CONFIG_DIR = Path.cwd() / ".agentroom"
 
 
 def _get_base_url() -> str:
@@ -51,18 +53,100 @@ def _save_config(cfg, agent_name: str = "default"):
         json.dump(cfg, f, indent=2)
 
 
+# ---------- Project-level config ----------
+
+def _load_project_config():
+    """读取项目级 .agentroom/config.yaml，如果不存在返回空字典。"""
+    path = PROJECT_CONFIG_DIR / "config.yaml"
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        except Exception:
+            return {}
+    return {}
+
+
+def _save_project_config(cfg):
+    """保存项目级 .agentroom/config.yaml。"""
+    PROJECT_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    path = PROJECT_CONFIG_DIR / "config.yaml"
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+
+def _resolve_agent_name() -> str | None:
+    """按优先级解析 agent 名称：环境变量 > 项目配置 > None"""
+    env = os.environ.get("AGENTROOM_AGENT_NAME") or os.environ.get("AGENTROOM_AGENT")
+    if env:
+        return env
+    cfg = _load_project_config()
+    default = cfg.get("default_agent")
+    if default:
+        return default
+    return None
+
+
+# ---------- API helpers for agent init ----------
+
+def _fetch_room_members(room_id: int, agent_name: str):
+    """获取房间成员列表，返回 (members_list, error_msg)。"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        return None, "未找到 token，请先加入房间"
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers={"X-Member-Token": token})
+    if r.status_code == 200:
+        return r.json(), None
+    return None, f"获取成员失败: {r.text}"
+
+
+def _fetch_my_info(room_id: int, agent_name: str):
+    """获取自己在房间中的信息（角色描述等），返回 (info_dict, error_msg)。"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        return None, "未找到 token"
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/members", headers={"X-Member-Token": token})
+    if r.status_code == 200:
+        for m in r.json():
+            if m.get("name") == agent_name:
+                return m, None
+        return None, "未在成员列表中找到自己"
+    return None, f"获取成员失败: {r.text}"
+
+
+def _fetch_recent_messages(room_id: int, agent_name: str, limit: int = 20):
+    """获取房间最近消息，返回 (messages_list, error_msg)。"""
+    token = _get_member_token(room_id, agent_name)
+    if not token:
+        return None, "未找到 token"
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms/{room_id}/messages?limit={limit}", headers={"X-Member-Token": token})
+    if r.status_code == 200:
+        return r.json(), None
+    return None, f"获取消息失败: {r.text}"
+
+
+def _fetch_rooms():
+    """获取所有房间列表，返回 (rooms_list, error_msg)。"""
+    r = _api_request(httpx.get, f"{BASE_URL}/rooms")
+    if r.status_code == 200:
+        return r.json(), None
+    return None, f"获取房间列表失败: {r.text}"
+
+
 def _env_agent_name(ctx, param, value):
-    """Fallback to AGENTROOM_AGENT_NAME env var if --as not provided."""
+    """Resolve agent name: --as > AGENTROOM_AGENT_NAME > AGENTROOM_AGENT > project config."""
     if value:
         return value
-    return os.environ.get("AGENTROOM_AGENT_NAME", value)
+    resolved = _resolve_agent_name()
+    return resolved if resolved else value
 
 
 def _env_agent_name_for_listener(ctx, param, value):
-    """Fallback to AGENTROOM_AGENT_NAME env var for --agent option."""
+    """Resolve agent name for --agent option: CLI arg > env var > project config."""
     if value:
         return value
-    return os.environ.get("AGENTROOM_AGENT_NAME", value)
+    resolved = _resolve_agent_name()
+    return resolved if resolved else value
 
 
 def _api_request(method, url, **kwargs):
@@ -486,25 +570,28 @@ def help():
 ║    room list                           查看所有房间          ║
 ║    room join [room_id] --as [name]     加入房间              ║
 ║                                                              ║
-║  消息操作                                                    ║
-║    send [room_id] [content] --as [name] 发送消息             ║
-║    read [room_id] --since [N] --as [name] 读取最近消息      ║
-║    history [room_id] -n [N] --as [name] 查看历史消息        ║
-║    watch [room_id] --as [name]         持续监听新消息       ║
+║  消息操作（--as 可选，自动从环境变量或项目配置读取）        ║
+║    send [room_id] [content]            发送消息             ║
+║    read [room_id] --since [N]          读取最近消息         ║
+║    history [room_id] -n [N]            查看历史消息         ║
+║    watch [room_id]                     持续监听新消息       ║
 ║                                                              ║
-║  成员管理                                                    ║
-║    members list [room_id] --as [name]  查看成员列表         ║
-║    members who [room_id] --as [name]   查看团队分工         ║
-║    members remove [room_id] --as [name] 退出房间            ║
-║    describe [room_id] [desc] --as [name] 设置角色描述       ║
+║  成员管理（--as 可选）                                       ║
+║    members list [room_id]              查看成员列表         ║
+║    members who [room_id]               查看团队分工         ║
+║    members remove [room_id]            退出房间             ║
+║    describe [room_id] [desc]           设置角色描述         ║
+║                                                              ║
+║  Agent 管理                                                  ║
+║    agent init [--name <name>] [--auto] 初始化 Agent 身份    ║
 ║                                                              ║
 ║  监听器                                                      ║
-║    listener start --agent [name] --room [id] 启动监听器     ║
+║    listener start --room [id]          启动监听器           ║
 ║                                                              ║
 ║  使用示例                                                    ║
 ║    agentroom room list                              ║
-║    agentroom send 1 "hello" --as Kimi-Agent         ║
-║    agentroom members who 1 --as Kimi-Agent          ║
+║    agentroom send 1 "hello"                         ║
+║    agentroom members who 1                          ║
 ╚══════════════════════════════════════════════════════════════╝
 """)
 
@@ -518,12 +605,18 @@ def listener():
 
 
 @listener.command("start")
-@click.option("--agent", required=True, help="Agent 名称", callback=_env_agent_name_for_listener)
+@click.option("--agent", default="", help="Agent 名称（可选，自动识别）", callback=_env_agent_name_for_listener)
 @click.option("--room", type=int, default=1, help="房间 ID")
 @click.option("--timeout", type=int, default=3600, help="超时时间(秒)")
 @click.option("--count", type=int, default=1, help="启动实例数量")
 def listener_start(agent, room, timeout, count):
     """启动监听器实例（前台阻塞，stdout 直通）"""
+    if not agent:
+        click.echo("❌ 无法识别 Agent 名称。请执行以下任一操作：")
+        click.echo("   1. 设置环境变量: export AGENTROOM_AGENT_NAME=Kimi-Dev")
+        click.echo("   2. 初始化项目: agentroom agent init --name Kimi-Dev --auto")
+        click.echo("   3. 显式指定: --agent Kimi-Dev")
+        sys.exit(1)
     script_dir = os.path.dirname(os.path.abspath(__file__))
     listener_script = os.path.join(script_dir, "listener.py")
     for i in range(count):
@@ -582,6 +675,238 @@ def listener_status():
     click.echo("🎧 运行中的监听器:")
     for agent, room, pid in listeners:
         click.echo(f"   • {agent} | room {room} | PID {pid}")
+
+
+# ---------- Agent ----------
+
+@cli.group()
+def agent():
+    """Agent 身份管理"""
+    pass
+
+
+def _build_profile_content(name: str, room_id: int | None, my_info: dict | None, members: list | None, messages: list | None) -> str:
+    """构建完整的 profile.md 内容（初次 init 用）。"""
+    lines = [f"# {name}", ""]
+
+    # 角色
+    lines.append("## 角色")
+    if my_info and my_info.get("description"):
+        lines.append(my_info["description"])
+    else:
+        lines.append("<!-- 初始化时未获取到角色描述，可通过 describe 命令设置 -->")
+    lines.append("")
+
+    # 当前房间
+    lines.append("## 当前房间")
+    if room_id:
+        lines.append(f"- Room {room_id}")
+    else:
+        lines.append("<!-- 未指定默认房间 -->")
+    lines.append("")
+
+    # 成员
+    lines.append("## 成员")
+    if members:
+        for m in members:
+            role = m.get("role", "member")
+            mtype = m.get("type", "unknown")
+            desc = m.get("description", "")
+            if desc:
+                # API 可能返回转义后的 \n 字面量或实际换行符
+                desc = desc.replace("\\n", " ").replace("\n", " ").replace("\r", "").strip()
+                if len(desc) > 80:
+                    desc = desc[:80] + "..."
+            info = f" ({desc})" if desc else ""
+            lines.append(f"- @{m['name']} [{role}] ({mtype}){info}")
+    else:
+        lines.append("<!-- 未获取到成员信息 -->")
+    lines.append("")
+
+    # 最近动态（自动更新区域）
+    lines.append("<!-- AGENTROOM_AUTO_START: 以下内容由 agent init 自动更新，手动编辑将被覆盖 -->")
+    lines.append("## 最近动态")
+    if messages:
+        for msg in messages[:10]:
+            ts = msg.get("created_at", "")[:10]
+            sender = msg.get("sender_name", "unknown")
+            content = msg.get("content", "")[:60]
+            if len(msg.get("content", "")) > 60:
+                content += "..."
+            lines.append(f"- [{ts}] @{sender}: {content}")
+    else:
+        lines.append("<!-- 暂无消息 -->")
+    lines.append("<!-- AGENTROOM_AUTO_END -->")
+    lines.append("")
+
+    # 常用命令
+    lines.append("## 常用命令")
+    lines.append("```bash")
+    lines.append("# 发消息")
+    lines.append(f"agentroom send {room_id or 1} \"内容\"")
+    lines.append("")
+    lines.append("# 读取最近消息")
+    lines.append(f"agentroom read {room_id or 1} --since 10")
+    lines.append("")
+    lines.append("# 启动监听器")
+    lines.append(f"agentroom listener start --room {room_id or 1}")
+    lines.append("```")
+    lines.append("")
+
+    return "\n".join(lines) + "\n"
+
+
+def _update_profile_auto_section(content: str, messages: list | None) -> str:
+    """更新 profile.md 中 AGENTROOM_AUTO 标记区域的内容。"""
+    start_marker = "<!-- AGENTROOM_AUTO_START"
+    end_marker = "<!-- AGENTROOM_AUTO_END -->"
+
+    start_idx = content.find(start_marker)
+    end_idx = content.find(end_marker)
+
+    if start_idx == -1 or end_idx == -1:
+        # 标记不存在，无法安全更新，返回原内容
+        return content
+
+    # 构建新的动态内容
+    new_lines = ["<!-- AGENTROOM_AUTO_START: 以下内容由 agent init 自动更新，手动编辑将被覆盖 -->", "## 最近动态"]
+    if messages:
+        for msg in messages[:10]:
+            ts = msg.get("created_at", "")[:10]
+            sender = msg.get("sender_name", "unknown")
+            content_text = msg.get("content", "")[:60]
+            if len(msg.get("content", "")) > 60:
+                content_text += "..."
+            new_lines.append(f"- [{ts}] @{sender}: {content_text}")
+    else:
+        new_lines.append("<!-- 暂无消息 -->")
+    new_lines.append("<!-- AGENTROOM_AUTO_END -->")
+
+    new_section = "\n".join(new_lines) + "\n"
+    return content[:start_idx] + new_section + content[end_idx + len(end_marker):]
+
+
+@agent.command("init")
+@click.option("--name", help="Agent 名称")
+@click.option("--auto", is_flag=True, help="自动从环境变量推断名称")
+@click.option("--room", type=int, help="默认房间 ID")
+@click.option("--force", is_flag=True, help="强制覆盖已有 profile.md")
+def agent_init(name, auto, room, force):
+    """初始化当前项目中的 Agent 身份
+
+    初次执行：创建目录结构 + 从服务器拉取信息生成完整 profile.md
+    再次执行：加载已有配置 + 刷新最新状态（只更新动态部分）
+    """
+    if auto:
+        name = name or os.environ.get("AGENTROOM_AGENT_NAME") or os.environ.get("AGENTROOM_AGENT")
+
+    if not name:
+        click.echo("❌ 请提供 --name 或使用 --auto 从环境变量推断")
+        sys.exit(1)
+
+    # 推断默认房间：从全局配置中找第一个有 token 的房间
+    if not room:
+        global_cfg = _load_config(name)
+        tokens = global_cfg.get("tokens", {})
+        if tokens:
+            try:
+                room = int(list(tokens.keys())[0])
+            except ValueError:
+                pass
+
+    # 更新项目级配置
+    cfg = _load_project_config()
+    cfg["default_agent"] = name
+    if room:
+        cfg["default_room"] = room
+    agents = cfg.get("agents", [])
+    if name not in agents:
+        agents.append(name)
+    cfg["agents"] = agents
+
+    # 多房间支持：更新 rooms 列表
+    rooms = cfg.get("rooms", [])
+    room_ids = {r.get("id") for r in rooms}
+    if room and room not in room_ids:
+        # 获取房间名称
+        all_rooms, _ = _fetch_rooms()
+        room_name = "unknown"
+        if all_rooms:
+            for r in all_rooms:
+                if r.get("id") == room:
+                    room_name = r.get("name", "unknown")
+                    break
+        rooms.append({"id": room, "name": room_name})
+    cfg["rooms"] = rooms
+    _save_project_config(cfg)
+
+    # 创建 agent home
+    agent_home = PROJECT_CONFIG_DIR / "agents" / name
+    agent_home.mkdir(parents=True, exist_ok=True)
+    (agent_home / "history").mkdir(exist_ok=True)
+
+    profile_path = agent_home / "profile.md"
+    is_first_time = not profile_path.exists()
+
+    # 从服务器拉取信息
+    my_info = None
+    members = None
+    messages = None
+    if room:
+        my_info, _ = _fetch_my_info(room, name)
+        members, _ = _fetch_room_members(room, name)
+        messages, _ = _fetch_recent_messages(room, name, limit=20)
+
+    if is_first_time or force:
+        # 初次 init 或强制覆盖：生成完整 profile.md
+        content = _build_profile_content(name, room, my_info, members, messages)
+        profile_path.write_text(content, encoding="utf-8")
+        action = "初始化"
+    else:
+        # 后续 init：只更新动态部分
+        old_content = profile_path.read_text(encoding="utf-8")
+        content = _update_profile_auto_section(old_content, messages)
+        profile_path.write_text(content, encoding="utf-8")
+        action = "更新"
+
+    click.echo(f"✅ Agent '{name}' {action}完成")
+    click.echo(f"   项目配置: {PROJECT_CONFIG_DIR / 'config.yaml'}")
+    click.echo(f"   Agent home: {agent_home}")
+    if room:
+        click.echo(f"   默认房间: {room}")
+    if is_first_time:
+        click.echo("")
+        click.echo("💡 后续在这个项目里，CLI 会自动识别你的身份，无需再带 --as")
+        click.echo(f"   当前 session 可执行: export AGENTROOM_AGENT_NAME={name}")
+    else:
+        click.echo("")
+        click.echo("📝 profile.md 动态部分已刷新（角色/成员等手动编辑内容保留）")
+
+
+@agent.command("info")
+def agent_info():
+    """显示当前 Agent 身份解析结果"""
+    env_name = os.environ.get("AGENTROOM_AGENT_NAME") or os.environ.get("AGENTROOM_AGENT")
+    cfg = _load_project_config()
+    project_agent = cfg.get("default_agent")
+
+    click.echo("🔍 Agent 身份解析:")
+    if env_name:
+        click.echo(f"   环境变量: {env_name}")
+    if project_agent:
+        click.echo(f"   项目配置: {project_agent}")
+    if not env_name and not project_agent:
+        click.echo("   (未配置)")
+        click.echo("   请执行: agentroom agent init --name <name>")
+        return
+
+    effective = env_name or project_agent
+    click.echo(f"   生效身份: {effective}")
+
+    # 显示项目中的 agent 列表
+    agents = cfg.get("agents", [])
+    if agents:
+        click.echo(f"   项目 agents: {', '.join(agents)}")
 
 
 # ---------- Describe ----------

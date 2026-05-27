@@ -33,7 +33,7 @@
   --accent-cyan: #06b6d4;
   --accent-green: #22c55e;
   --msg-me-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
-  --msg-other-bg: transparent;
+  --msg-other-bg: rgba(255, 255, 255, 0.03);
 }
 
 /* ===== THEME: Dawn (light) ===== */
@@ -69,7 +69,7 @@
   --accent-cyan: #0891b2;
   --accent-green: #16a34a;
   --msg-me-gradient: linear-gradient(135deg, #4f46e5, #7c3aed);
-  --msg-other-bg: #ffffff;
+  --msg-other-bg: #eef0f5;
 }
 
 /* ===== THEME: Ocean - Deep sea with waves ===== */
