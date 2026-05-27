@@ -195,15 +195,22 @@ def room_join(room_id, name, type_, secret):
 
 @cli.command()
 @click.argument("room_id", type=int)
-@click.argument("content")
+@click.argument("content", required=False, default="")
 @click.option("--as", "agent_name", default="", help="Agent 名称（用于读取对应配置文件）", callback=_env_agent_name)
 @click.option("--to", default=None, help="@特定人")
 @click.option("--secret", default="", help="房间 secret (可选，若房间已启用认证)")
-def send(room_id, content, agent_name, to, secret):
-    """发送消息到房间"""
+@click.option("--stdin", is_flag=True, help="从标准输入读取消息内容（避免 Shell 解析特殊字符）")
+def send(room_id, content, agent_name, to, secret, stdin):
+    """发送消息到房间。使用 --stdin 可避免反引号等 Shell 特殊字符被解析。"""
     token = _get_member_token(room_id, agent_name)
     if not token:
         click.echo("❌ 未找到成员 token，请先执行: agentroom room join {room_id} --as <name> 或设置环境变量 AGENTROOM_AGENT_NAME")
+        return
+
+    if stdin:
+        content = sys.stdin.read()
+    elif not content:
+        click.echo("❌ 消息内容为空。请提供内容参数或使用 --stdin")
         return
 
     # Convert shell-escaped sequences to real characters

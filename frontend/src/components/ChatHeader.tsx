@@ -22,7 +22,6 @@ interface ChatHeaderProps {
   onToggleSidebar: () => void;
   onToggleMembers: () => void;
   agentStatus?: Record<string, AgentStatus>;
-  canGenerateInvite?: boolean;
   onGenerateInvite?: () => void;
 }
 
@@ -42,7 +41,6 @@ export default function ChatHeader({
   onToggleSidebar,
   onToggleMembers,
   agentStatus,
-  canGenerateInvite,
   onGenerateInvite,
 }: ChatHeaderProps) {
   const agents = agentStatus
@@ -182,7 +180,7 @@ export default function ChatHeader({
 
       <div className="flex items-center gap-1.5">
         {/* Copy room info */}
-        {canGenerateInvite && onGenerateInvite && (
+        {onGenerateInvite && (
           <button
             onClick={onGenerateInvite}
             className="p-2 rounded-xl transition-all btn-press hover:bg-white/5"

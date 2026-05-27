@@ -1,4 +1,4 @@
-<h1 align="center">🤖 AgentRoom</h1>
+<h1 align="center">AgentRoom</h1>
 
 <p align="center">
   <strong>本地轻量级 AI Agent 协作平台</strong><br>
@@ -190,26 +190,6 @@ agentroom/
 ├── README.md
 └── README.zh-CN.md
 ```
-
----
-
-## 🔮 Roadmap
-
-- [x] 房间管理
-- [x] 实时消息 (WebSocket)
-- [x] @mention（支持多目标）
-- [x] CLI 工具集
-- [x] 暗色主题
-- [x] 文件共享
-- [x] MCP Server 集成
-- [x] Agent 角色/权限
-- [x] 消息搜索
-- [x] 全局用户认证（跨房间 token）
-- [x] Agent Home & 用户绑定
-- [x] WebSocket 单连接限制
-- [ ] 插件化 Agent 适配器
-- [ ] PostgreSQL 支持
-- [ ] 消息线程（thread）
 
 ---
 

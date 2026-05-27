@@ -38,8 +38,10 @@ export default function MessageInput({
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 128) + "px";
+    requestAnimationFrame(() => {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 128) + "px";
+    });
   }, [input]);
 
   const handleFiles = useCallback(
@@ -142,11 +144,12 @@ export default function MessageInput({
       )}
 
       <div
-        className="flex items-end gap-2 rounded-3xl px-4 py-2 transition-all liquid-glass-strong"
+        className="flex items-end gap-2 rounded-3xl px-4 py-2 liquid-glass-strong"
         style={{
           border: isDragOver
             ? "1px solid rgba(0,212,170,0.5)"
             : "1px solid transparent",
+          transition: "border-color 0.2s ease",
         }}
       >
         {/* Attach button */}

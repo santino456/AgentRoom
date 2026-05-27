@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { API_BASE } from "../config";
 
 const createComponents = (
   onImageClick?: (src: string, alt?: string) => void,
@@ -69,14 +70,23 @@ const createComponents = (
       {children}
     </a>
   ),
-  img: ({ src, alt }: any) => {
-    if (!src) return null;
+  img: ({ src, alt, node }: any) => {
+    // ReactMarkdown v9+ passes props differently; fall back to node.properties
+    const imageSrc = src || node?.properties?.src || "";
+    const imageAlt = alt || node?.properties?.alt || "";
+    if (!imageSrc) return null;
+    // Convert relative upload URLs to absolute URLs using the API server origin
+    let imageUrl = imageSrc;
+    if (imageSrc.startsWith("/uploads/")) {
+      const apiUrl = new URL(API_BASE, window.location.href);
+      imageUrl = `${apiUrl.origin}${imageSrc}`;
+    }
     return (
       <img
-        src={src}
-        alt={alt || "image"}
+        src={imageUrl}
+        alt={imageAlt || "image"}
         className="max-w-full max-h-64 rounded-lg cursor-zoom-in hover:opacity-90 transition-opacity my-1 block"
-        onClick={() => onImageClick?.(src, alt)}
+        onClick={() => onImageClick?.(imageUrl, imageAlt)}
         onError={(e) => {
           const img = e.target as HTMLImageElement;
           img.style.display = "none";

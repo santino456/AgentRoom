@@ -97,6 +97,31 @@ export default function App() {
     loadRooms();
   }, [loadRooms]);
 
+  // Verify token with backend and sync member name (replaces localStorage-only source)
+  useEffect(() => {
+    if (!currentRoomId || !memberToken) return;
+    const verify = async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/rooms/${currentRoomId}/members/me`,
+          {
+            credentials: "include",
+            headers: { "X-Member-Token": memberToken },
+          },
+        );
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) clearToken();
+          return;
+        }
+        const data = await res.json();
+        if (data.name && data.name !== memberName) saveToken(data.name);
+      } catch {
+        // Network error, keep current state
+      }
+    };
+    verify();
+  }, [currentRoomId, memberToken, saveToken, clearToken, memberName]);
+
   // Load unread count for a room
   const loadUnreadCount = useCallback(
     async (roomId: number) => {
@@ -709,8 +734,8 @@ export default function App() {
 
   const currentRoom = rooms.find((r) => r.id === currentRoomId);
 
-  const myRole = members.find((m) => m.name === memberName)?.role || "member";
-  const canGenerateInvite = myRole === "owner" || myRole === "admin";
+  // Role check removed — copy room info now available to all members
+  // Copy room info is now available to all members
 
   const generateInvite = async () => {
     if (!currentRoom) return;
@@ -856,7 +881,6 @@ export default function App() {
                 onToggleSidebar={() => setShowSidebar(!showSidebar)}
                 onToggleMembers={() => setShowMembers(!showMembers)}
                 agentStatus={agentStatus}
-                canGenerateInvite={canGenerateInvite}
                 onGenerateInvite={generateInvite}
               />
 

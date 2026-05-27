@@ -6,6 +6,21 @@ from schemas import MemberDescriptionUpdate, MemberOut, MemberRoleUpdate, Member
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/rooms/{room_id}/members", tags=["members"])
+@router.get("/me", response_model=MemberOut)
+def get_current_member_info(
+    room_id: int,
+    request: Request,
+    x_member_token: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Return the current authenticated member's info for this room."""
+    get_room(room_id, db)
+    member = get_current_member(room_id, request, x_member_token, db)
+    out = MemberOut.model_validate(member)
+    out.is_me = True
+    return out
+
+
 @router.get("", response_model=list[MemberOut])
 def list_members(
     room_id: int,
