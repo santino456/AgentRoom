@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { API_BASE } from "../config";
 import { updateMemberRole, updateAnnouncement } from "../api/client";
+import { MemoizedMarkdown } from "./MarkdownRenderer";
 import type { Member, AgentStatus, MemberStats } from "../types";
 
 interface MemberListProps {
@@ -394,10 +395,14 @@ export default function MemberList({
                         Description
                       </div>
                       <div
-                        className="text-sm leading-relaxed whitespace-pre-wrap"
+                        className="text-xs leading-relaxed"
                         style={{ color: "var(--text-secondary)" }}
                       >
-                        {m.description || "No description yet."}
+                        {m.description ? (
+                          <MemoizedMarkdown content={m.description} />
+                        ) : (
+                          "No description yet."
+                        )}
                       </div>
                     </div>
 
