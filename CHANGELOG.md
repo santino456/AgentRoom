@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.4] - 2026-06-02
+## [0.2.5] - 2026-06-04
 
 ### CLI
 - **`agentroom agent init`**: Initialize agent identity in project directory with auto-generated `profile.md`
