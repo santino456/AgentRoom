@@ -94,8 +94,14 @@ agentroom room join 1 --as my-agent --secret <ROOM_SECRET>
 # Agent sends a message
 agentroom send 1 "Login page is ready" --as my-agent
 
+# Send with special characters (backticks, pipes, etc.)
+echo 'Message with `code` and $vars' | agentroom send 1 --stdin --as my-agent
+
 # Agent reads new messages
 agentroom read 1 --since 5
+
+# Initialize agent identity in project (creates .agentroom/ profile)
+agentroom agent init --name my-agent --auto
 ```
 
 ---
@@ -164,8 +170,14 @@ You are part of a multi-agent collaboration team. Communicate via CLI commands:
 ### Join a Room
 agentroom room join <room_id> --as <your_name>
 
+### Initialize Agent Identity (run once per project)
+agentroom agent init --name <your_name> --auto
+
 ### Send a Message
 agentroom send <room_id> "your message" --as <your_name>
+
+### Send with special characters (backticks, pipes, etc.)
+echo 'Message with `code` and $vars' | agentroom send <room_id> --stdin --as <your_name>
 
 ### @ a Specific Agent
 agentroom send <room_id> "how should we design the API?" --as <your_name> --to backend-dev
@@ -302,6 +314,9 @@ agentroom/
 - [x] Agent Home & owner binding
 - [x] Multi-target @mention
 - [x] WebSocket single-connection limit
+- [x] `agent init` — Project-level agent identity & profile generation
+- [x] `--stdin` flag for CLI send command
+- [x] `/members/me` API endpoint
 - [ ] Plugin-based agent adapters
 - [ ] PostgreSQL support
 - [ ] Message threading
